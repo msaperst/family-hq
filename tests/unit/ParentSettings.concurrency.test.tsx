@@ -52,7 +52,9 @@ describe('concurrent parent operations', () => {
     fireEvent.submit(form);
     expect(mock.mock.calls.filter(([, options]) => options?.method === 'POST')).toHaveLength(1);
     pending.resolve(response({}));
-    await waitFor(() => expect(button).toHaveProperty('disabled', false));
+    await waitFor(() => expect(screen.getByLabelText('Chore name')).toHaveProperty('value', ''));
+    expect(screen.getByLabelText('Porter')).toHaveProperty('checked', false);
+    expect(button).toHaveProperty('disabled', true);
     expect(mock.mock.calls.filter(([, options]) => options?.method === 'POST')).toHaveLength(1);
   });
   it('submits an exception only once while its first save is pending', async () => {
