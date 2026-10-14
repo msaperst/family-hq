@@ -73,7 +73,7 @@ After initial analysis, configure the SonarCloud quality gate for new code and r
 
 **Locked dependencies:** `package-lock.json` is committed. CI and Docker use `npm ci` so installs fail if the lockfile and manifest disagree. When updating dependencies intentionally, run `npm install` to update both `package.json` and `package-lock.json`, then commit both. Re-run all CI checks and resolve dependency audit findings before merging.
 
-Additional lint, Playwright, security analysis and release automation remain tracked in #4 and later tickets.
+Issue #4 extends the workflow with scoped CodeQL JavaScript/TypeScript analysis and a blocking Trivy production-image vulnerability scan (fixable high/critical OS and library findings). Formatting/lint and Playwright browser smoke tests are the remaining #4 tasks. Add their dev dependencies with matching lockfile updates before enabling the checks. The new CodeQL and Trivy jobs should be added to required checks after they pass.
 
 ## Engineering expectations
 
