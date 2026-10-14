@@ -1,0 +1,4 @@
+html { font-family: system-ui, sans-serif; color-scheme: light dark; }
+body { margin: 0; }
+main { max-width: 48rem; padding: 2rem; margin: 2rem auto; }
+h1 { font-size: clamp(2rem, 5vw, 3rem); }
