@@ -68,4 +68,39 @@ describe('recurrence overrides and history', () => {
       expect(generateOccurrences(db,'s','2026-10-12','2026-10-15')).toEqual([]);
     } finally {db.close();}
   });
+  it('includes an occurrence moved into the query window from an earlier date', () => {
+    const db=fixture();
+    try {
+      override(db,'2026-10-12','move','2026-10-20');
+      const result=generateOccurrences(db,'s','2026-10-20','2026-10-20');
+      expect(result.map(x=>x.key)).toEqual(['s:2026-10-12','s:2026-10-20']);
+      expect(result[0]).toMatchObject({startsOn:'2026-10-20',dueOn:'2026-10-20'});
+      generateOccurrences(db,'s','2026-10-20','2026-10-20');
+      expect((db.prepare('SELECT count(*) AS n FROM chore_occurrences').get() as {n:number}).n).toBe(2);
+    } finally {db.close();}
+  });
+  it('includes an occurrence moved from a later date into the query window', () => {
+    const db=fixture();
+    try {
+      override(db,'2026-10-25','move','2026-10-14');
+      const result=previewOccurrences(db,'s','2026-10-14','2026-10-14');
+      expect(result.map(x=>x.key)).toEqual(['s:2026-10-14','s:2026-10-25']);
+    } finally {db.close();}
+  });
+  it('does not include moved occurrences whose target lies outside the query window', () => {
+    const db=fixture();
+    try {
+      override(db,'2026-10-12','move','2026-10-25');
+      expect(previewOccurrences(db,'s','2026-10-20','2026-10-20').map(x=>x.key)).toEqual(['s:2026-10-20']);
+    } finally {db.close();}
+  });
+  it('includes flexible weekly occurrences moved into a week from outside the range', () => {
+    const db=fixture({frequency:'weekly'});
+    try {
+      override(db,'2026-10-12','move','2026-10-21');
+      const result=previewOccurrences(db,'s','2026-10-23','2026-10-23');
+      expect(result.map(x=>x.key)).toEqual(['s:2026-10-12','s:2026-10-19']);
+      expect(result[0]).toMatchObject({startsOn:'2026-10-21',dueOn:'2026-10-27'});
+    } finally {db.close();}
+  });
 });

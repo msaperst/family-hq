@@ -56,12 +56,26 @@ export function previewOccurrences(db: DatabaseSync, scheduleId: string, from: s
   if (children.length === 0 || (schedule.mode === 'individual' && schedule.rotation === 'none' && children.length !== 1)) throw new Error('Invalid schedule assignees');
   const overrides = new Map((db.prepare('SELECT original_date, action, new_date, child_id FROM occurrence_overrides WHERE schedule_id = ?').all(scheduleId) as unknown as Override[]).map(x => [x.original_date, x]));
   const results: GeneratedOccurrence[] = [];
+  // Include original dates of overrides moved into this query window, even if
+  // those dates lie outside the requested window. The original date remains
+  // the stable occurrence identity.
+  const movedOrigins = new Set<number>();
+  for (const exception of overrides.values()) {
+    if (exception.action !== 'move' || !exception.new_date) continue;
+    const target = parseDate(exception.new_date);
+    const finish = schedule.frequency === 'weekly' && weekdays.length === 0 ? target + 6 : target;
+    if (target <= end && finish >= start) movedOrigins.add(parseDate(exception.original_date));
+  }
   // Weekly flexible: one obligation for each Monday–Sunday week, not seven daily obligations.
   const flexible = schedule.frequency === 'weekly' && weekdays.length === 0;
   const first = flexible ? monday(start) : start;
-  for (let day = first; day <= end; day += flexible ? 7 : 1) {
+  const days = new Set<number>();
+  for (let day = first; day <= end; day += flexible ? 7 : 1) days.add(day);
+  for (const origin of movedOrigins) days.add(origin);
+  for (const day of [...days].sort((a, b) => a - b)) {
     const origin = formatDate(day);
     if (flexible) {
+      if (day !== monday(day)) continue;
       if (day + 6 < anchor || (schedule.end_date && day > parseDate(schedule.end_date))) continue;
     } else if (!due(schedule, day, anchor, weekdays)) continue;
     const exception = overrides.get(origin);
