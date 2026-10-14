@@ -18,4 +18,4 @@ The dashboard polls every 30 seconds and refreshes on tab visibility changes. It
 
 ## Deployment boundary
 
-These household endpoints have no account authentication. **Do not expose the service directly to the public internet.** Bind the server to loopback for development and restrict any NAS/LAN deployment using the network/firewall/reverse-proxy controls before exposing it to household clients. Alexa or remote access will require a separate authenticated boundary.
+These household endpoints have no account authentication. The server rejects non-private source IPs for household API routes (and does not trust forwarded headers). **Do not expose the service directly to the public internet.** Bind the server to loopback for development and restrict any NAS/LAN deployment using network/firewall/reverse-proxy controls before exposing it to household clients. A reverse proxy must also enforce its own trusted-client policy because the app sees the proxy's source IP. Alexa or remote access will require a separate authenticated boundary.
