@@ -170,6 +170,50 @@ describe('parent schedule API', () => {
     expect((await app.inject({ method: 'DELETE', url })).statusCode).toBe(409);
     expect(db.prepare("SELECT completed FROM chore_completions WHERE occurrence_id = 'protected'").get()).toMatchObject({ completed: 1 });
   });
+
+  it('rolls back schedule creation when an assignee insert fails', async () => {
+    db.exec(`CREATE TRIGGER reject_create_assignment BEFORE INSERT ON schedule_assignees
+      BEGIN SELECT RAISE(ABORT, 'simulated assignment failure'); END`);
+    const result = await app.inject({ method: 'POST', url: '/api/parent/schedules', payload });
+    expect(result.statusCode).toBe(500);
+    expect(db.prepare('SELECT COUNT(*) AS n FROM chores').get()).toMatchObject({ n: 0 });
+    expect(db.prepare('SELECT COUNT(*) AS n FROM chore_schedules').get()).toMatchObject({ n: 0 });
+  });
+  it('rolls back schedule edits, preserving name, assignments and generated occurrences', async () => {
+    const created = await app.inject({ method: 'POST', url: '/api/parent/schedules', payload });
+    const { id, choreId } = created.json() as { id: string; choreId: string };
+    db.prepare(`INSERT INTO chore_occurrences (id, occurrence_key, chore_id, schedule_id, starts_on, due_on, mode)
+      VALUES ('rollback-future', 'rollback-future', ?, ?, '2099-01-01', '2099-01-01', 'individual')`).run(choreId, id);
+    db.prepare("INSERT INTO occurrence_assignees (occurrence_id, child_id) VALUES ('rollback-future', 'porter')").run();
+    db.exec(`CREATE TRIGGER reject_edit_assignment BEFORE INSERT ON schedule_assignees
+      BEGIN SELECT RAISE(ABORT, 'simulated edit failure'); END`);
+    const result = await app.inject({ method: 'PUT', url: '/api/parent/schedules/' + id,
+      payload: { ...payload, name: 'Changed name', assignees: ['miller'] } });
+    expect(result.statusCode).toBe(500);
+    expect(db.prepare('SELECT name FROM chores WHERE id = ?').get(choreId)).toMatchObject({ name: payload.name });
+    expect(db.prepare('SELECT child_id FROM schedule_assignees WHERE schedule_id = ?').get(id)).toMatchObject({ child_id: 'porter' });
+    expect(db.prepare("SELECT id FROM chore_occurrences WHERE id = 'rollback-future'").get()).toBeDefined();
+  });
+  it('rolls back failed exception upserts and preserves the original override', async () => {
+    const created = await app.inject({ method: 'POST', url: '/api/parent/schedules', payload });
+    const url = '/api/parent/schedules/' + created.json().id + '/exceptions/2099-01-05';
+    expect((await app.inject({ method: 'PUT', url, payload: { action: 'skip' } })).statusCode).toBe(200);
+    db.exec(`CREATE TRIGGER reject_exception_update BEFORE UPDATE ON occurrence_overrides
+      BEGIN SELECT RAISE(ABORT, 'simulated override failure'); END`);
+    expect((await app.inject({ method: 'PUT', url, payload: { action: 'reassign', childId: 'miller' } })).statusCode).toBe(500);
+    const list = await app.inject({ method: 'GET', url: '/api/parent/schedules/' + created.json().id + '/exceptions' });
+    expect(list.json().exceptions).toEqual([expect.objectContaining({ action: 'skip', originalDate: '2099-01-05' })]);
+  });
+  it('rolls back failed exception deletion and retains the override', async () => {
+    const created = await app.inject({ method: 'POST', url: '/api/parent/schedules', payload });
+    const url = '/api/parent/schedules/' + created.json().id + '/exceptions/2099-01-05';
+    expect((await app.inject({ method: 'PUT', url, payload: { action: 'skip' } })).statusCode).toBe(200);
+    db.exec(`CREATE TRIGGER reject_exception_delete BEFORE DELETE ON occurrence_overrides
+      BEGIN SELECT RAISE(ABORT, 'simulated deletion failure'); END`);
+    expect((await app.inject({ method: 'DELETE', url })).statusCode).toBe(500);
+    const list = await app.inject({ method: 'GET', url: '/api/parent/schedules/' + created.json().id + '/exceptions' });
+    expect(list.json().exceptions).toEqual([expect.objectContaining({ action: 'skip', originalDate: '2099-01-05' })]);
+  });
   it('rejects invalid pause payload and unknown schedules', async () => {
     expect((await app.inject({ method: 'PATCH', url: '/api/parent/schedules/unknown', payload: { paused: true } })).statusCode).toBe(404);
     expect((await app.inject({ method: 'PATCH', url: '/api/parent/schedules/unknown', payload: { paused: 'yes' } })).statusCode).toBe(400);
