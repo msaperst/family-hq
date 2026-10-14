@@ -68,7 +68,9 @@ describe('Family HQ connection status', () => {
   });
 
   it('ignores an AbortError rather than reporting an API failure', async () => {
-    fetchMock.mockRejectedValue(new DOMException('Aborted', 'AbortError'));
+    const abortError = new Error('Aborted');
+    abortError.name = 'AbortError';
+    fetchMock.mockRejectedValue(abortError);
     render(<App />);
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     expect(screen.getByRole('status').textContent).toContain('Checking connection');
