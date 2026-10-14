@@ -70,6 +70,40 @@ describe('parent schedule API', () => {
     expect((await app.inject({ method: 'PUT', url: '/api/parent/schedules/' + created.json().id,
       payload: { ...payload, assignees: ['unknown'] } })).statusCode).toBe(400);
   });
+
+  it('hides generated chores on pause and restores them on resume', async () => {
+    const created = await app.inject({ method: 'POST', url: '/api/parent/schedules',
+      payload: { ...payload, frequency: 'daily', weekdays: [] } });
+    const { id, choreId } = created.json() as { id: string; choreId: string };
+    db.prepare(`INSERT INTO chore_occurrences (id, occurrence_key, chore_id, schedule_id, starts_on, due_on, mode)
+      VALUES ('pause-occ', 'pause-occ', ?, ?, '2026-10-12', '2026-10-12', 'individual')`).run(choreId, id);
+    db.prepare("INSERT INTO occurrence_assignees (occurrence_id, child_id) VALUES ('pause-occ', 'porter')").run();
+    const board = async () => (await app.inject({ method: 'GET', url: '/api/chores?date=2026-10-14' })).json();
+    expect(JSON.stringify(await board())).toContain('pause-occ');
+    await app.inject({ method: 'PATCH', url: '/api/parent/schedules/' + id, payload: { paused: true } });
+    expect(JSON.stringify(await board())).not.toContain('pause-occ');
+    await app.inject({ method: 'PATCH', url: '/api/parent/schedules/' + id, payload: { paused: false } });
+    expect(JSON.stringify(await board())).toContain('pause-occ');
+  });
+  it('reconciles untouched future occurrences while preserving completion history', async () => {
+    const created = await app.inject({ method: 'POST', url: '/api/parent/schedules', payload });
+    const { id, choreId } = created.json() as { id: string; choreId: string };
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Phoenix', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    const next = (days: number) => new Date(Date.parse(today + 'T00:00:00Z') + days * 86400000).toISOString().slice(0, 10);
+    for (const [occurrence, day] of [['past', '2026-01-01'], ['future', next(1)], ['completed-future', next(2)]] as const) {
+      db.prepare(`INSERT INTO chore_occurrences (id, occurrence_key, chore_id, schedule_id, starts_on, due_on, mode)
+        VALUES (?, ?, ?, ?, ?, ?, 'individual')`).run(occurrence, occurrence, choreId, id, day, day);
+      db.prepare('INSERT INTO occurrence_assignees (occurrence_id, child_id) VALUES (?, ?)').run(occurrence, 'porter');
+    }
+    db.prepare(`INSERT INTO chore_completions (occurrence_id, child_id, completed, updated_at)
+      VALUES ('completed-future', '', 1, '2026-10-14T12:00:00Z')`).run();
+    const response = await app.inject({ method: 'PUT', url: '/api/parent/schedules/' + id,
+      payload: { ...payload, assignees: ['miller'] } });
+    expect(response.statusCode).toBe(200);
+    const remaining = db.prepare('SELECT id FROM chore_occurrences ORDER BY id').all() as { id: string }[];
+    expect(remaining.map(row => row.id)).toEqual(['completed-future', 'past']);
+    expect(db.prepare("SELECT completed FROM chore_completions WHERE occurrence_id = 'completed-future'").get()).toMatchObject({ completed: 1 });
+  });
   it('rejects invalid pause payload and unknown schedules', async () => {
     expect((await app.inject({ method: 'PATCH', url: '/api/parent/schedules/unknown', payload: { paused: true } })).statusCode).toBe(404);
     expect((await app.inject({ method: 'PATCH', url: '/api/parent/schedules/unknown', payload: { paused: 'yes' } })).statusCode).toBe(400);
