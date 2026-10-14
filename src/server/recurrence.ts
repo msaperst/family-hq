@@ -53,7 +53,7 @@ export function previewOccurrences(db: DatabaseSync, scheduleId: string, from: s
   const weekdays = weekdaysOf(schedule);
   const children = (db.prepare('SELECT child_id FROM schedule_assignees WHERE schedule_id = ? ORDER BY rotation_order').all(scheduleId) as {child_id:string}[]).map(x => x.child_id);
   if (children.length === 0 || (schedule.mode === 'individual' && schedule.rotation === 'none' && children.length !== 1)) throw new Error('Invalid schedule assignees');
-  const overrides = new Map((db.prepare('SELECT original_date, action, new_date, child_id FROM occurrence_overrides WHERE schedule_id = ?').all(scheduleId) as Override[]).map(x => [x.original_date, x]));
+  const overrides = new Map((db.prepare('SELECT original_date, action, new_date, child_id FROM occurrence_overrides WHERE schedule_id = ?').all(scheduleId) as unknown as Override[]).map(x => [x.original_date, x]));
   const results: GeneratedOccurrence[] = [];
   // Weekly flexible: one obligation for each Monday–Sunday week, not seven daily obligations.
   const flexible = schedule.frequency === 'weekly' && weekdays.length === 0;
