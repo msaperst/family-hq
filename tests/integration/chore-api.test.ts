@@ -77,6 +77,30 @@ describe('chore API', () => {
     const response = await app.inject({ method: 'GET', url: '/api/children' });
     expect(response.json().children).toEqual([{ id: 'miller', name: 'Miller' }]);
   });
+  it('rejects malformed completion bodies and missing targets', async () => {
+    occurrence('a', 'individual', ['porter']);
+    const url = '/api/chores/a/completion';
+    for (const payload of [
+      {}, { completed: null }, { completed: 'yes' },
+      { completed: true, childId: [] }, { completed: true, performedBy: 3 },
+      { completed: true, performedBy: 'miller' },
+    ]) {
+      const result = await app.inject({ method: 'PUT', url, payload });
+      expect([400, 404]).toContain(result.statusCode);
+    }
+    expect((await app.inject({ method: 'PUT', url: '/api/chores/missing/completion', payload: { completed: true } })).statusCode).toBe(404);
+    expect((await get()).columns[0].chores[0].completed).toBe(false);
+  });
+  it('validates dates and expanded horizon', async () => {
+    for (const date of ['bad', '2026-02-30', '2026-13-01', '2026-10-14T00:00:00Z']) {
+      expect((await app.inject({ method: 'GET', url: '/api/chores?date=' + encodeURIComponent(date) })).statusCode).toBe(400);
+    }
+    expect((await app.inject({ method: 'GET', url: '/api/chores?more=1' })).statusCode).toBe(400);
+    expect((await app.inject({ method: 'GET', url: '/api/chores?more=false' })).statusCode).toBe(200);
+    const extended = await app.inject({ method: 'GET', url: '/api/chores?date=2026-10-14&more=true' });
+    expect(extended.statusCode).toBe(200);
+    expect((extended.json() as DashboardResponse).through).toBe('2026-11-10');
+  });
   it('generates scheduled chores when requested', async () => {
     db.prepare(`INSERT INTO chore_schedules (id, chore_id, mode, frequency, anchor_date)
       VALUES ('schedule', 'bed', 'individual', 'daily', '2026-10-14')`).run();

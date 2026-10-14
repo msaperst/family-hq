@@ -34,6 +34,14 @@ describe('dashboard dates', () => {
     expect(visibleByDefault({ ...chore('2026-10-18'), startsOn: '2026-10-12' }, today)).toBe(true);
     expect(visibleByDefault({ ...chore('2026-10-18'), startsOn: '2026-10-17' }, today)).toBe(false);
   });
+  it('handles Sunday boundaries and completed future chores', () => {
+    const sunday = '2026-10-18';
+    expect(sectionFor(chore('2026-10-19'), sunday)).toBe('upcoming');
+    expect(visibleByDefault(chore('2026-10-19'), sunday)).toBe(false);
+    expect(visibleByDefault(chore('2026-10-19', true), sunday)).toBe(true);
+    expect(visibleByDefault(chore('2026-10-18'), sunday)).toBe(true);
+    expect(dueLabel(chore('2026-10-21'), sunday)).toContain('Wednesday');
+  });
   it('groups overdue, due today, later this week and beyond', () => {
     const today = '2026-10-14';
     expect(sectionFor(chore('2026-10-13'), today)).toBe('overdue');

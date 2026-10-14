@@ -47,7 +47,7 @@ docker run --rm --init --network host \
 
 Use `npx playwright test --headed` inside a graphical environment for a visible browser. The Docker command is headless by default.
 
-Playwright initializes a new database under the OS temp directory, seeds children and daily/weekly/shared/overdue chores, then deletes the database. The suite tests column rendering, due dates, completion, reload persistence, future-chore expansion and cross-tab shared state. **Checkboxes update asynchronously**, and overdue chores disappear when completed; browser tests click and assert the resulting UI instead of requiring a checkbox to remain mounted.
+Playwright initializes a new database under the OS temp directory, seeds children and daily/weekly/shared/overdue chores, then deletes the database. The browser suite uses a freshly seeded database per full run, with single-worker execution. Tests do not delete SQLite records between cases while the application server is running; doing so can cause SQLITE_BUSY lock errors. The suite tests column rendering, due dates, completion, reload persistence, future-chore expansion and cross-tab shared state. **Checkboxes update asynchronously**, and overdue chores disappear when completed; browser tests click and assert the resulting UI instead of requiring a checkbox to remain mounted.
 
 CI runs the same Playwright suite in a separate **Playwright browser workflows** job and uploads screenshots/traces on failure. Browser tests do not contribute to Vitest's V8 unit-coverage percentage. A test failure should be diagnosed from its trace or screenshot, not bypassed.
 
@@ -61,3 +61,5 @@ npx playwright show-report
 ```
 
 See `docs/API.md` for the API contract and `docs/RECURRENCE.md` for recurrence behavior.
+
+If a Playwright failure still references `locator.check()` on `dashboard.spec.ts:28`, confirm you pulled the latest feature branch: the updated test uses `.click()` because completing overdue chores unmounts their checkbox. Run `grep -n '\.check()' tests/e2e/browser/dashboard.spec.ts` to confirm.

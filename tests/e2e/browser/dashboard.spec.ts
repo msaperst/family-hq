@@ -1,12 +1,4 @@
-import { DatabaseSync } from 'node:sqlite';
 import { expect, test } from '@playwright/test';
-
-test.beforeEach(async ({}, testInfo) => {
-  const db = new DatabaseSync(testInfo.config.metadata.dbPath as string);
-  try {
-    db.exec('DELETE FROM completion_events; DELETE FROM chore_completions;');
-  } finally { db.close(); }
-});
 
 test('renders dynamic columns and overdue work from SQLite', async ({ page }) => {
   await page.goto('/');
@@ -58,7 +50,9 @@ test('shared completion persists across browser tabs', async ({ browser }) => {
     await second.goto('/');
     const shared1 = first.getByRole('region', { name: 'Either child' });
     const shared2 = second.getByRole('region', { name: 'Either child' });
-    await shared1.locator('label.chore').filter({ hasText: 'Feed pets' }).first().getByRole('checkbox').click();
+    const checkbox = shared1.locator('label.chore').filter({ hasText: 'Feed pets' }).first().getByRole('checkbox');
+    await checkbox.click();
+    await expect(checkbox).toBeChecked();
     await second.reload();
     await expect(shared2.locator('label.chore').filter({ hasText: 'Feed pets' }).first().getByRole('checkbox')).toBeChecked();
   } finally { await context.close(); }
