@@ -95,3 +95,22 @@ test('completed overdue chore disappears after 30 seconds without reload', async
   await page.clock.fastForward(31_000);
   await expect(laundry).toHaveCount(0);
 });
+
+test('does not show chores completed on previous days', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByText('Yesterday completed test chore')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Show more upcoming chores' }).click();
+  await expect(page.getByText('Yesterday completed test chore')).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByText('Yesterday completed test chore')).toHaveCount(0);
+});
+
+test('keeps chores completed today visible and checked after reload', async ({ page }) => {
+  await page.goto('/');
+  const chore = page.getByRole('region', { name: 'Porter' }).locator('label.chore').filter({ hasText: 'Today completed test chore' });
+  await expect(chore).toBeVisible();
+  await expect(chore.getByRole('checkbox')).toBeChecked();
+  await page.reload();
+  await expect(chore).toBeVisible();
+  await expect(chore.getByRole('checkbox')).toBeChecked();
+});
