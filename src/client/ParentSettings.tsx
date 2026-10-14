@@ -15,6 +15,8 @@ export function ParentSettings() {
   const [children, setChildren] = useState<Child[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [rotation, setRotation] = useState<'none' | 'daily' | 'weekly'>('none');
   const [name, setName] = useState('');
   const [mode, setMode] = useState<'individual' | 'either' | 'each'>('individual');
   const [frequency, setFrequency] = useState<'once' | 'daily' | 'weekly' | 'interval_days' | 'interval_weeks'>('daily');
@@ -32,18 +34,31 @@ export function ParentSettings() {
     setChildren(childrenData.children);
   }
   useEffect(() => { void load().catch(cause => setError(cause instanceof Error ? cause.message : 'Unable to load settings')); }, []);
+  function edit(schedule: Schedule) {
+    setEditingId(schedule.id); setName(schedule.name);
+    setMode(schedule.mode as typeof mode); setFrequency(schedule.frequency as typeof frequency);
+    setIntervalCount(schedule.intervalCount); setWeekdays(schedule.weekdays);
+    setAnchorDate(schedule.anchorDate); setEndDate(schedule.endDate ?? '');
+    setRotation(schedule.rotation as typeof rotation); setAssignees(schedule.assignees);
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+  }
+  function resetForm() {
+    setEditingId(null); setName(''); setMode('individual'); setFrequency('daily');
+    setIntervalCount(1); setWeekdays([]); setAnchorDate(localDate());
+    setEndDate(''); setRotation('none'); setAssignees([]);
+  }
   async function create(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
     setBusy(true); setError('');
     try {
-      const response = await fetch('/api/parent/schedules', {
-        method: 'POST', headers: { 'content-type': 'application/json' },
+      const response = await fetch(editingId ? '/api/parent/schedules/' + encodeURIComponent(editingId) : '/api/parent/schedules', {
+        method: editingId ? 'PUT' : 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ name, mode, frequency, intervalCount, weekdays,
-          anchorDate, endDate: endDate || null, rotation: 'none', assignees }),
+          anchorDate, endDate: endDate || null, rotation, assignees }),
       });
       if (!response.ok) throw new Error((await response.json() as { error?: string }).error || 'Could not create chore');
-      setName('');
+      resetForm();
       await load();
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not create chore'); }
     finally { setBusy(false); }
@@ -74,27 +89,33 @@ export function ParentSettings() {
         <div><strong>{schedule.name}</strong>
           <p>{schedule.frequency.replaceAll('_', ' ')} · {schedule.assignees.map(id => children.find(child => child.id === id)?.name ?? id).join(', ')} · {schedule.paused ? 'Paused' : 'Active'}</p>
         </div>
-        <button type="button" disabled={busy} onClick={() => void pause(schedule)}>{schedule.paused ? 'Resume' : 'Pause'}</button>
+        <div className="schedule-actions"><button type="button" disabled={busy} onClick={() => edit(schedule)}>Edit</button>
+        <button type="button" disabled={busy} onClick={() => void pause(schedule)}>{schedule.paused ? 'Resume' : 'Pause'}</button></div>
       </li>)}</ul>
     </section>
     <section className="settings-panel">
-      <h2>Add a chore</h2>
+      <h2>{editingId ? 'Edit chore' : 'Add a chore'}</h2>
       <form onSubmit={event => void create(event)} className="settings-form">
         <label>Chore name<input required maxLength={120} value={name} onChange={event => setName(event.target.value)} /></label>
         <label>Who completes it?
-          <select value={mode} onChange={event => { setMode(event.target.value as typeof mode); setAssignees([]); }}>
-            <option value="individual">One child</option><option value="either">Either child</option><option value="each">Each child</option>
+          <select value={mode} onChange={event => { setMode(event.target.value as typeof mode); setRotation('none'); setAssignees([]); }}>
+            <option value="individual">One child / rotating</option><option value="either">Either child</option><option value="each">Each child</option>
           </select>
         </label>
         <fieldset><legend>Assign to</legend>
           {children.map(child => <label key={child.id} className="settings-checkbox">
-            <input type={mode === 'individual' ? 'radio' : 'checkbox'} name="assignee"
+            <input type={mode === 'individual' && rotation === 'none' ? 'radio' : 'checkbox'} name="assignee"
               checked={assignees.includes(child.id)}
-              onChange={() => setAssignees(previous => mode === 'individual' ? [child.id] :
+              onChange={() => setAssignees(previous => mode === 'individual' && rotation === 'none' ? [child.id] :
                 previous.includes(child.id) ? previous.filter(id => id !== child.id) : [...previous, child.id])} />
             {child.name}
           </label>)}
         </fieldset>
+        {mode === 'individual' && <label>Rotate assignment
+          <select value={rotation} onChange={event => { const next = event.target.value as typeof rotation; setRotation(next); if (next === 'none') setAssignees(previous => previous.slice(0, 1)); }}>
+            <option value="none">No rotation</option><option value="daily">Daily</option><option value="weekly">Weekly</option>
+          </select>
+        </label>}
         <label>Repeat
           <select value={frequency} onChange={event => setFrequency(event.target.value as typeof frequency)}>
             <option value="once">Once</option><option value="daily">Daily</option><option value="weekly">Weekly</option>
@@ -113,7 +134,8 @@ export function ParentSettings() {
           </fieldset>}
         <label>Start date<input type="date" required value={anchorDate} onChange={event => setAnchorDate(event.target.value)} /></label>
         <label>End date (optional)<input type="date" min={anchorDate} value={endDate} onChange={event => setEndDate(event.target.value)} /></label>
-        <button type="submit" disabled={busy || !name.trim() || !assignees.length}>Add chore</button>
+        <div className="schedule-actions"><button type="submit" disabled={busy || !name.trim() || !assignees.length}>{editingId ? 'Save changes' : 'Add chore'}</button>
+        {editingId && <button type="button" disabled={busy} onClick={resetForm}>Cancel editing</button>}</div>
       </form>
     </section>
   </main>;
