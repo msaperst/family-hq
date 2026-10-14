@@ -28,7 +28,7 @@ From `family-hq/`:
 
 ```sh
 cp .env.example .env
-npm install
+npm ci
 npm run dev
 ```
 
@@ -71,7 +71,7 @@ The scanner uses `family-hq/sonar-project.properties`, with `src/` as source, `t
 
 After initial analysis, configure the SonarCloud quality gate for new code and require the GitHub Actions `SonarQube analysis and quality gate` check in branch protection. The workflow intentionally fails if scanning or the quality gate fails. For forked PRs, secrets may be unavailable; do not weaken token access or expose secrets to untrusted workflows to bypass this.
 
-**Dependency lockfile required before merge:** This authoring environment could not install npm packages. Generate and commit `package-lock.json` using `npm install`, replace `npm install` with `npm ci` in CI and Docker, and verify the entire pipeline. Do not merge while dependency resolution and quality gates are unverified.
+**Locked dependencies:** `package-lock.json` is committed. CI and Docker use `npm ci` so installs fail if the lockfile and manifest disagree. When updating dependencies intentionally, run `npm install` to update both `package.json` and `package-lock.json`, then commit both. Re-run all CI checks and resolve dependency audit findings before merging.
 
 Additional lint, Playwright, security analysis and release automation remain tracked in #4 and later tickets.
 
