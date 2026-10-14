@@ -10,6 +10,7 @@
     "build": "tsc -p tsconfig.server.json && vite build",
     "start": "node --env-file-if-exists=.env dist/server/server/index.js",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.server.json",
+    "lint": "node scripts/check-source.mjs",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
   },

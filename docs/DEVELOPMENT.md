@@ -37,6 +37,7 @@ Open `http://127.0.0.1:5173` (or the configured `VITE_PORT`). Vite proxies `/api
 ## Verification
 
 ```sh
+npm run lint
 npm run typecheck
 npm run test:coverage
 npm run build
@@ -73,7 +74,7 @@ After initial analysis, configure the SonarCloud quality gate for new code and r
 
 **Locked dependencies:** `package-lock.json` is committed. CI and Docker use `npm ci` so installs fail if the lockfile and manifest disagree. When updating dependencies intentionally, run `npm install` to update both `package.json` and `package-lock.json`, then commit both. Re-run all CI checks and resolve dependency audit findings before merging.
 
-Issue #4 extends the workflow with scoped CodeQL JavaScript/TypeScript analysis and a blocking Trivy production-image vulnerability scan (fixable high/critical OS and library findings). Formatting/lint and Playwright browser smoke tests are the remaining #4 tasks. Add their dev dependencies with matching lockfile updates before enabling the checks. The new CodeQL and Trivy jobs should be added to required checks after they pass.
+Issue #4 extends the workflow with scoped CodeQL JavaScript/TypeScript analysis and a blocking Trivy production-image vulnerability scan (fixable high/critical OS and library findings). A dependency-free source hygiene gate now checks source/test scripts for whitespace and newline consistency. The Docker smoke job also verifies that the built frontend is served and unknown API routes return 404. These are not substitutes for ESLint, Prettier or a real Playwright browser run: those remain to be added with properly updated locked dependencies. The new CodeQL and Trivy jobs should be added to required checks after they pass.
 
 ## Engineering expectations
 
