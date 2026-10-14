@@ -14,7 +14,7 @@ Each chore includes `id`, `name`, `startsOn`, `dueOn`, `mode`, `childId` (null f
 
 `PUT /api/chores/:id/completion` with JSON `{"childId":"child-id","completed":true}` completes an individual or each-child obligation. For an either-child chore, send `{"childId":null,"completed":true}`. Repeating the same request is idempotent and recorded only once. Setting `completed:false` unchecks it. Concurrent updates serialize using SQLite `BEGIN IMMEDIATE`.
 
-The dashboard polls every 30 seconds and refreshes on tab visibility changes. Its relative dates refresh automatically as the Phoenix date changes.
+By default, the UI shows overdue and today's chores, tomorrow's chores, active flexible multi-day chores due this week, and early-completed future chores. Other future daily chores are available through **Show more upcoming chores**. The dashboard polls every 30 seconds and refreshes on tab visibility changes. Its relative dates refresh automatically as the Phoenix date changes.
 
 ## Deployment boundary
 

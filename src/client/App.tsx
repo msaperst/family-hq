@@ -16,6 +16,16 @@ export function sectionFor(chore: DashboardChore, today: string): 'overdue' | 't
   if (chore.dueOn <= weekEnd(today)) return 'later';
   return 'upcoming';
 }
+export function visibleByDefault(chore: DashboardChore, today: string): boolean {
+  const group = sectionFor(chore, today);
+  if (group === 'overdue' || group === 'today') return true;
+  if (chore.completed && chore.dueOn >= today) return true;
+  if (group !== 'later') return false;
+  const tomorrow = new Date(Date.parse(today + 'T00:00:00Z') + 86_400_000).toISOString().slice(0, 10);
+  // A flexible multi-day obligation can be done any time before its deadline.
+  // Ordinary future daily occurrences remain hidden until tomorrow.
+  return chore.dueOn === tomorrow || (chore.startsOn < chore.dueOn && chore.startsOn <= today);
+}
 export function dueLabel(chore: DashboardChore, today: string): string {
   const delta = Math.round((Date.parse(chore.dueOn + 'T00:00:00Z') - Date.parse(today + 'T00:00:00Z')) / 86_400_000);
   if (delta === -1) return 'Yesterday · Overdue';
@@ -85,7 +95,7 @@ export function App() {
         <div className="column-heading"><h2>{column.name}</h2><p>{column.chores.filter(chore => chore.completed).length} completed</p></div>
         {groups.map(group => {
           if (group.id === 'upcoming' && !more) return null;
-          const chores = column.chores.filter(chore => sectionFor(chore, today) === group.id);
+          const chores = column.chores.filter(chore => (more || visibleByDefault(chore, today)) && sectionFor(chore, today) === group.id);
           if (!chores.length) return null;
           return <section key={group.id} className="chore-group">
             <h3 className={group.id === 'overdue' ? 'overdue' : ''}>{group.title}</h3>
@@ -98,7 +108,7 @@ export function App() {
             })}
           </section>;
         })}
-        {!more && column.chores.every(chore => sectionFor(chore, today) === 'upcoming') &&
+        {!more && column.chores.every(chore => !visibleByDefault(chore, today)) &&
           <p className="upcoming-hint">Chores coming up. Select “Show more upcoming chores” to see them.</p>}
       </section>)}
     </div>}

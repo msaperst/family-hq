@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { dateOffset, localToday } from '../../src/server/dashboard.js';
-import { dueLabel, sectionFor } from '../../src/client/App.js';
+import { dueLabel, sectionFor, visibleByDefault } from '../../src/client/App.js';
 import type { DashboardChore } from '../../src/shared/dashboard.js';
 
 const chore = (dueOn: string, completed = false): DashboardChore => ({
@@ -22,6 +22,17 @@ describe('dashboard dates', () => {
     expect(dueLabel(chore(today), today)).toBe('Today');
     expect(dueLabel(chore('2026-10-15'), today)).toBe('Tomorrow');
     expect(dueLabel(chore('2026-10-18'), today)).toBe('End of week · Sunday');
+  });
+  it('keeps tomorrow and flexible weekly chores visible without flooding future daily chores', () => {
+    const today = '2026-10-14';
+    expect(visibleByDefault(chore('2026-10-13'), today)).toBe(true);
+    expect(visibleByDefault(chore(today), today)).toBe(true);
+    expect(visibleByDefault(chore('2026-10-15'), today)).toBe(true);
+    expect(visibleByDefault(chore('2026-10-16'), today)).toBe(false);
+    expect(visibleByDefault(chore('2026-10-16', true), today)).toBe(true);
+    expect(visibleByDefault(chore('2026-10-19'), today)).toBe(false);
+    expect(visibleByDefault({ ...chore('2026-10-18'), startsOn: '2026-10-12' }, today)).toBe(true);
+    expect(visibleByDefault({ ...chore('2026-10-18'), startsOn: '2026-10-17' }, today)).toBe(false);
   });
   it('groups overdue, due today, later this week and beyond', () => {
     const today = '2026-10-14';
