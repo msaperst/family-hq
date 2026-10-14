@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { ParentSettings } from '../../src/client/ParentSettings';
 
 const schedule = { id: 'weekly', name: 'Clean bedroom', mode: 'individual', frequency: 'weekly',
@@ -120,6 +120,48 @@ describe('concurrent parent operations', () => {
     pending.resolve(response({}));
     await waitFor(() => expect(remove).toHaveProperty('disabled', false));
     expect(mock.mock.calls.filter(([, options]) => options?.method === 'DELETE')).toHaveLength(1);
+  });
+
+  it('allows only one mutation when two different actions arrive in the same React batch', async () => {
+    const pending = deferred();
+    mock.mockImplementation(async (url, options) => {
+      if (options?.method === 'PATCH') return pending.promise;
+      if (String(url).endsWith('/children')) return response({ children });
+      return response({ schedules: [schedule] });
+    });
+    render(<ParentSettings />);
+    await screen.findByText('Clean bedroom');
+    fireEvent.change(screen.getByLabelText('Chore name'), { target: { value: 'Laundry' } });
+    fireEvent.click(screen.getByLabelText('Porter'));
+    const form = screen.getByRole('button', { name: 'Add chore' }).closest('form')!;
+    const pause = screen.getByRole('button', { name: 'Pause' });
+    act(() => {
+      fireEvent.click(pause);
+      fireEvent.submit(form);
+    });
+    expect(mock.mock.calls.filter(([, options]) => options?.method === 'PATCH')).toHaveLength(1);
+    expect(mock.mock.calls.filter(([, options]) => options?.method === 'POST')).toHaveLength(0);
+    pending.resolve(response({}));
+    await waitFor(() => expect(pause).toHaveProperty('disabled', false));
+    fireEvent.submit(form);
+    await waitFor(() => expect(mock.mock.calls.filter(([, options]) => options?.method === 'POST')).toHaveLength(1));
+  });
+  it('releases the mutation lock after a failed request', async () => {
+    const pending = deferred();
+    mock.mockImplementation(async (url, options) => {
+      if (options?.method === 'PATCH') return pending.promise;
+      if (String(url).endsWith('/children')) return response({ children });
+      return response({ schedules: [schedule] });
+    });
+    render(<ParentSettings />);
+    await screen.findByText('Clean bedroom');
+    const pause = screen.getByRole('button', { name: 'Pause' });
+    fireEvent.click(pause);
+    pending.resolve({ ok: false, json: async () => ({}) } as Response);
+    await screen.findByRole('alert');
+    await waitFor(() => expect(pause).toHaveProperty('disabled', false));
+    fireEvent.click(pause);
+    await waitFor(() => expect(mock.mock.calls.filter(([, options]) => options?.method === 'PATCH')).toHaveLength(2));
   });
   it('keeps existing weekdays when switching from a daily schedule to fixed weekly dates', async () => {
     await edit();

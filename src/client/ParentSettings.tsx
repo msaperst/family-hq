@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 interface Schedule {
   id: string; name: string; mode: string; frequency: string;
@@ -17,6 +17,17 @@ export function ParentSettings() {
   const [children, setChildren] = useState<Child[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const mutationLock = useRef(false);
+  function beginMutation(): boolean {
+    if (mutationLock.current) return false;
+    mutationLock.current = true;
+    setBusy(true);
+    return true;
+  }
+  function endMutation() {
+    mutationLock.current = false;
+    setBusy(false);
+  }
   const [editingId, setEditingId] = useState<string | null>(null);
   const [occurrences, setOccurrences] = useState<Occurrence[]>([]);
   const [exceptions, setExceptions] = useState<Exception[]>([]);
@@ -71,8 +82,8 @@ export function ParentSettings() {
   }
   async function create(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy) return;
-    setBusy(true); setError('');
+    if (!beginMutation()) return;
+    setError('');
     try {
       const response = await fetch(editingId ? '/api/parent/schedules/' + encodeURIComponent(editingId) : '/api/parent/schedules', {
         method: editingId ? 'PUT' : 'POST', headers: { 'content-type': 'application/json' },
@@ -83,12 +94,12 @@ export function ParentSettings() {
       resetForm();
       await load();
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not create chore'); }
-    finally { setBusy(false); }
+    finally { endMutation(); }
   }
   async function saveException(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!editingId || busy) return;
-    setBusy(true); setError('');
+    if (!editingId || !beginMutation()) return;
+    setError('');
     try {
       const response = await fetch('/api/parent/schedules/' + encodeURIComponent(editingId) +
         '/exceptions/' + encodeURIComponent(exceptionDate), {
@@ -100,7 +111,7 @@ export function ParentSettings() {
       if (!response.ok) throw new Error((await response.json() as { error?: string }).error ?? 'Could not save exception');
       await loadOccurrences(editingId);
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save exception'); }
-    finally { setBusy(false); }
+    finally { endMutation(); }
   }
   async function removeException(date: string) {
     if (!editingId || busy) return;
@@ -111,7 +122,7 @@ export function ParentSettings() {
       if (!response.ok) throw new Error('Could not remove exception');
       await loadOccurrences(editingId);
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not remove exception'); }
-    finally { setBusy(false); }
+    finally { endMutation(); }
   }
   async function pause(schedule: Schedule) {
     if (busy) return;
@@ -124,7 +135,7 @@ export function ParentSettings() {
       if (!response.ok) throw new Error('Could not update schedule');
       await load();
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not update schedule'); }
-    finally { setBusy(false); }
+    finally { endMutation(); }
   }
   return <main className="dashboard parent-settings">
     <header className="dashboard-header">
