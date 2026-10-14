@@ -87,7 +87,7 @@ export function App() {
       if (chore.dueOn < today) {
         if (!chore.completed) {
           const columnId = chore.mode === 'either' ? 'either' : chore.childId;
-          if (columnId) setUndoEntries(entries => [...entries.filter(entry => entry.chore.id !== chore.id), {
+          setUndoEntries(entries => [...entries.filter(entry => entry.chore.id !== chore.id), {
             chore: { ...chore, completed: true }, columnId, expiresAt: Date.now() + OVERDUE_UNDO_MS,
           }]);
         } else {
