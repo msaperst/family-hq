@@ -16,5 +16,5 @@ export function App() {
       });
     return () => controller.abort();
   }, []);
-  return <main><h1>Family HQ</h1><p>Household dashboard — foundation in progress.</p><p role="status">API: {status}</p></main>;
+  return <main><h1>Family HQ</h1><p>Household dashboard — foundation in progress.</p><output>API: {status}</output></main>;
 }

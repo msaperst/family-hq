@@ -6,7 +6,7 @@ import type { HealthResponse } from '../shared/health.js';
 
 export function buildApp(options: { serveClient?: boolean } = {}) {
   const app = Fastify({ logger: true });
-  app.get('/api/health', async (): Promise<HealthResponse> => ({ status: 'ok', service: 'family-hq' }));
+  app.get('/api/health', (): HealthResponse => ({ status: 'ok', service: 'family-hq' }));
   if (options.serveClient) {
     const root = resolve(process.cwd(), 'dist/client');
     if (!existsSync(resolve(root, 'index.html'))) throw new Error('Built client assets missing');
