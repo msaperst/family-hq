@@ -73,7 +73,7 @@ CI requires:
 - **Type safety and tests:** TypeScript checks, Vitest coverage and the production build must pass.
 - **Dependency security:** `npm audit --audit-level=high` rejects high/critical dependency advisories.
 - **Runtime behavior:** The Docker smoke test checks the health endpoint, serves the built frontend and confirms unknown API routes return HTTP 404.
-- **Code analysis:** SonarQube enforces its quality gate using `coverage/lcov.info`; CodeQL scans JavaScript/TypeScript sources.
+- **Code analysis:** SonarQube enforces its quality gate using `coverage/lcov.info`; SonarQube provides static source analysis.
 - **Container security:** Trivy scans the production Docker image for fixable high/critical OS and library vulnerabilities. Keep the final image limited to files and executables needed to run the service.
 
 ### SonarQube configuration
@@ -84,7 +84,7 @@ Set the repository Actions secret `SONAR_TOKEN` to a SonarCloud analysis token. 
 
 ### Required pull request checks
 
-In GitHub repository branch protection or rulesets for `main`, require the relevant Family HQ checks, including the SonarQube quality gate, CodeQL and container vulnerability scan. Verify their exact reported check names before adding them. Do not merge when required checks fail; investigate findings rather than disabling the gates.
+In GitHub repository branch protection or rulesets for `main`, require the relevant Family HQ checks, including the SonarQube quality gate and the container vulnerability scan. Verify their exact reported check names before adding them. Do not merge when required checks fail; investigate findings rather than disabling the gates.
 
 ### Updating dependencies
 
