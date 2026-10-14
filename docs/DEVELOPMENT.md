@@ -2,13 +2,13 @@
 
 ## Workflow
 
-Work in scoped feature branches and submit pull requests into `main`. Keep production code, tests and documentation together. Do not change the existing NAS backup/network infrastructure as part of an unrelated app change.
+Work in scoped feature branches and submit pull requests into `main`. Keep production code, tests and documentation together. Do not change existing NAS backup/network infrastructure as part of an unrelated app change.
 
 ## Prerequisites
 
 - Node.js 22 and npm
 - Docker with Compose for container testing (optional locally)
-- A free local TCP port (default `3080`; Grafana uses `3000` on the NAS)
+- A free TCP port (default `3080`; Grafana uses `3000` on the NAS)
 
 ## Environment configuration
 
@@ -16,11 +16,11 @@ Copy `.env.example` to `.env` and adjust as needed:
 
 | Variable | Default | Use |
 | --- | --- | --- |
-| `FAMILY_HQ_PORT` | `3080` | API listen port, Vite proxy destination, Compose port mapping and container health check |
+| `FAMILY_HQ_PORT` | `3080` | API listen port, Vite proxy destination, Compose mapping and container health check |
 | `HOST` | `127.0.0.1` | Local API bind address; Compose overrides to `0.0.0.0` inside container |
 | `VITE_PORT` | `5173` | Local frontend development port |
 
-Vite reads `.env` through `loadEnv`. Node does **not** automatically load `.env`; the development scripts load it using Node's `--env-file-if-exists` option. Compose reads the file for variable substitution. Never commit `.env` or credentials.
+Vite reads `.env` through `loadEnv`. The Node development script uses `--env-file-if-exists`. Compose reads the file for variable substitution. Never commit credentials.
 
 ## Local development
 
@@ -32,30 +32,26 @@ npm install
 npm run dev
 ```
 
-Open the frontend at `http://127.0.0.1:5173` (or the configured `VITE_PORT`). The page fetches `/api/health` via Vite's proxy to the configured `FAMILY_HQ_PORT`. To verify the API independently:
-
-```sh
-curl "http://127.0.0.1:${FAMILY_HQ_PORT:-3080}/api/health"
-```
-
-Stop with Ctrl+C. Development starts both processes using `concurrently`.
+Open `http://127.0.0.1:5173` (or the configured `VITE_PORT`). Vite proxies `/api` to the configured `FAMILY_HQ_PORT`.
 
 ## Verification
 
 ```sh
 npm run typecheck
-npm test
+npm run test:coverage
 npm run build
 npm audit --audit-level=high
 ```
 
-To verify the compiled application:
+The Vitest V8 coverage report is written to `coverage/lcov.info` and uploaded for SonarQube analysis.
+
+For compiled application smoke testing:
 
 ```sh
 NODE_ENV=production npm start
 ```
 
-Open `http://127.0.0.1:3080` (or your configured port). The API and compiled UI are served by the same Fastify process.
+The server serves the built UI and API on the configured `FAMILY_HQ_PORT`. Stop with Ctrl+C.
 
 ## Docker smoke test
 
@@ -65,13 +61,19 @@ curl "http://127.0.0.1:${FAMILY_HQ_PORT:-3080}/api/health"
 docker compose down
 ```
 
-Compose binds the port to host loopback only. This is **not** the QNAP production deployment configuration.
+Compose binds to host loopback only and is not a QNAP production deployment.
 
-## CI
+## CI and SonarQube
 
-The scoped `.github/workflows/family-hq.yml` runs on Family HQ changes. It performs TypeScript validation, Vitest tests, production build, npm dependency audit and Docker build/health smoke testing. It does not deploy or publish images. Additional lint, Playwright, security analysis and release automation are tracked in #4 and subsequent tickets.
+The scoped `.github/workflows/family-hq.yml` runs on Family HQ PRs and pushes to `main` that affect the application or workflow. It performs typechecking, tests with coverage, production build, npm audit, Docker smoke test, **SonarQube scan and quality gate enforcement**. No image is deployed.
 
-**Lockfile follow-up:** The authoring environment could not access npm registry, so `package-lock.json` has not been generated. Before merging PR #20, run `npm install`, commit `package-lock.json`, replace `npm install` with `npm ci` in Docker and CI, and confirm checks pass. This is required for reproducible dependency resolution.
+The scanner uses `family-hq/sonar-project.properties`, with `src/` as source, `tests/` as tests and `coverage/lcov.info` for JavaScript/TypeScript coverage. It targets the existing `msaperst` SonarCloud organization using the proposed project key `msaperst_home-lab`. Provision that project in SonarCloud, authorize GitHub repository integration/PR decoration, and configure a repository Actions secret named `SONAR_TOKEN` with an appropriate analysis token. Do not put tokens in `.env.example` or the repository.
+
+After initial analysis, configure the SonarCloud quality gate for new code and require the GitHub Actions `SonarQube analysis and quality gate` check in branch protection. The workflow intentionally fails if scanning or the quality gate fails. For forked PRs, secrets may be unavailable; do not weaken token access or expose secrets to untrusted workflows to bypass this.
+
+**Dependency lockfile required before merge:** This authoring environment could not install npm packages. Generate and commit `package-lock.json` using `npm install`, replace `npm install` with `npm ci` in CI and Docker, and verify the entire pipeline. Do not merge while dependency resolution and quality gates are unverified.
+
+Additional lint, Playwright, security analysis and release automation remain tracked in #4 and later tickets.
 
 ## Engineering expectations
 
