@@ -12,7 +12,10 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.server.json",
     "lint": "node scripts/check-source.mjs",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "test:e2e:persistence": "sh tests/e2e/persistence.sh"
   },
   "dependencies": {
     "@fastify/static": "^10.1.6",
