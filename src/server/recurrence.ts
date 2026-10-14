@@ -42,57 +42,74 @@ function due(schedule: Schedule, day: number, anchor: number, weekdays: number[]
       (weekdays.length === 0 ? weekday(day) === weekday(anchor) : weekdays.includes(weekday(day)));
   }
 }
-export function previewOccurrences(db: DatabaseSync, scheduleId: string, from: string, to: string): GeneratedOccurrence[] {
-  const start = parseDate(from);
-  const end = parseDate(to);
-  if (end < start || end - start > 366) throw new Error('Date range must span 0–366 days');
+interface RecurrenceContext {
+  schedule: Schedule;
+  anchor: number;
+  weekdays: number[];
+  children: string[];
+  overrides: Map<string, Override>;
+  flexible: boolean;
+}
+function loadContext(db: DatabaseSync, scheduleId: string): RecurrenceContext | null {
   const schedule = db.prepare('SELECT * FROM chore_schedules WHERE id = ?').get(scheduleId) as unknown as Schedule | undefined;
   if (!schedule) throw new Error('Schedule not found');
-  if (schedule.paused) return [];
+  if (schedule.paused) return null;
   if (schedule.interval_count < 1) throw new Error('Invalid interval');
   const anchor = parseDate(schedule.anchor_date);
   const weekdays = weekdaysOf(schedule);
   const children = (db.prepare('SELECT child_id FROM schedule_assignees WHERE schedule_id = ? ORDER BY rotation_order').all(scheduleId) as unknown as {child_id:string}[]).map(x => x.child_id);
   if (children.length === 0 || (schedule.mode === 'individual' && schedule.rotation === 'none' && children.length !== 1)) throw new Error('Invalid schedule assignees');
   const overrides = new Map((db.prepare('SELECT original_date, action, new_date, child_id FROM occurrence_overrides WHERE schedule_id = ?').all(scheduleId) as unknown as Override[]).map(x => [x.original_date, x]));
-  const results: GeneratedOccurrence[] = [];
-  // Include original dates of overrides moved into this query window, even if
-  // those dates lie outside the requested window. The original date remains
-  // the stable occurrence identity.
-  const movedOrigins = new Set<number>();
+  return { schedule, anchor, weekdays, children, overrides, flexible: schedule.frequency === 'weekly' && weekdays.length === 0 };
+}
+function candidateDays(context: RecurrenceContext, start: number, end: number): number[] {
+  const { overrides, flexible } = context;
+  const days = new Set<number>();
+  for (let day = flexible ? monday(start) : start; day <= end; day += flexible ? 7 : 1) days.add(day);
+  // Moved occurrences retain their original identity, even when the original
+  // date lies outside the requested window.
   for (const exception of overrides.values()) {
     if (exception.action !== 'move' || !exception.new_date) continue;
     const target = parseDate(exception.new_date);
-    const finish = schedule.frequency === 'weekly' && weekdays.length === 0 ? target + 6 : target;
-    if (target <= end && finish >= start) movedOrigins.add(parseDate(exception.original_date));
+    const finish = flexible ? target + 6 : target;
+    if (target <= end && finish >= start) days.add(parseDate(exception.original_date));
   }
-  // Weekly flexible: one obligation for each Monday–Sunday week, not seven daily obligations.
-  const flexible = schedule.frequency === 'weekly' && weekdays.length === 0;
-  const first = flexible ? monday(start) : start;
-  const days = new Set<number>();
-  for (let day = first; day <= end; day += flexible ? 7 : 1) days.add(day);
-  for (const origin of movedOrigins) days.add(origin);
-  for (const day of [...days].sort((a, b) => a - b)) {
-    const origin = formatDate(day);
-    if (flexible) {
-      // Flexible-week origins are generated on Mondays.
-      if (day + 6 < anchor || (schedule.end_date && day > parseDate(schedule.end_date))) continue;
-    } else if (!due(schedule, day, anchor, weekdays)) continue;
-    const exception = overrides.get(origin);
-    const moved = exception?.action === 'move' && exception.new_date ? parseDate(exception.new_date) : day;
-    const begin = moved;
-    const finish = flexible ? moved + 6 : moved;
-    if (finish < start || begin > end) continue;
-    const index = schedule.rotation === 'weekly' ? Math.floor((monday(day) - monday(anchor)) / 7) : day - anchor;
-    const assignees = schedule.rotation === 'none' ? [...children] : [children[((index % children.length) + children.length) % children.length]];
-    if (exception?.action === 'reassign' && exception.child_id) assignees.splice(0, assignees.length, exception.child_id);
-    results.push({
-      id: schedule.id + ':' + origin, key: schedule.id + ':' + origin,
-      choreId: schedule.chore_id, scheduleId: schedule.id,
-      startsOn: formatDate(begin), dueOn: formatDate(finish),
-      mode: schedule.rotation === 'none' ? schedule.mode : 'individual',
-      assignees, skipped: exception?.action === 'skip',
-    });
+  return [...days].sort((a, b) => a - b);
+}
+function isScheduled(context: RecurrenceContext, day: number): boolean {
+  const { flexible, schedule, anchor, weekdays } = context;
+  if (!flexible) return due(schedule, day, anchor, weekdays);
+  return day + 6 >= anchor && (!schedule.end_date || day <= parseDate(schedule.end_date));
+}
+function occurrenceForDay(context: RecurrenceContext, day: number, start: number, end: number): GeneratedOccurrence | null {
+  if (!isScheduled(context, day)) return null;
+  const { schedule, anchor, children, overrides, flexible } = context;
+  const origin = formatDate(day);
+  const exception = overrides.get(origin);
+  const moved = exception?.action === 'move' && exception.new_date ? parseDate(exception.new_date) : day;
+  const finish = flexible ? moved + 6 : moved;
+  if (finish < start || moved > end) return null;
+  const index = schedule.rotation === 'weekly' ? Math.floor((monday(day) - monday(anchor)) / 7) : day - anchor;
+  const assignees = schedule.rotation === 'none' ? [...children] : [children[((index % children.length) + children.length) % children.length]];
+  if (exception?.action === 'reassign' && exception.child_id) assignees.splice(0, assignees.length, exception.child_id);
+  return {
+    id: schedule.id + ':' + origin, key: schedule.id + ':' + origin,
+    choreId: schedule.chore_id, scheduleId: schedule.id,
+    startsOn: formatDate(moved), dueOn: formatDate(finish),
+    mode: schedule.rotation === 'none' ? schedule.mode : 'individual',
+    assignees, skipped: exception?.action === 'skip',
+  };
+}
+export function previewOccurrences(db: DatabaseSync, scheduleId: string, from: string, to: string): GeneratedOccurrence[] {
+  const start = parseDate(from);
+  const end = parseDate(to);
+  if (end < start || end - start > 366) throw new Error('Date range must span 0–366 days');
+  const context = loadContext(db, scheduleId);
+  if (!context) return [];
+  const results: GeneratedOccurrence[] = [];
+  for (const day of candidateDays(context, start, end)) {
+    const occurrence = occurrenceForDay(context, day, start, end);
+    if (occurrence) results.push(occurrence);
   }
   return results;
 }
