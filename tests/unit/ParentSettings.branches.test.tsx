@@ -83,6 +83,61 @@ describe('parent settings conditional behavior', () => {
     await waitFor(() => expect(mock).toHaveBeenCalledWith(
       '/api/parent/schedules/weekly/exceptions/2099-01-05', expect.objectContaining({ method: 'DELETE' })));
   });
+
+  it('shows schedule assignee fallback and exception assignee fallback when a child is missing', async () => {
+    schedules = [{ ...weekly, assignees: ['retired'] }];
+    overrides = [{ originalDate: '2099-01-05', action: 'reassign', newDate: null, childId: 'retired' }];
+    await openEditor();
+    expect(screen.getByText(/retired · Active/)).toBeTruthy();
+    expect(screen.getByText(/2099-01-05: reassign → retired/)).toBeTruthy();
+  });
+  it('switches from daily to weekly, then to an interval and back to a flexible week', async () => {
+    schedules = [{ ...weekly, frequency: 'daily', weekdays: [] }];
+    await openEditor();
+    fireEvent.change(screen.getByLabelText('Repeat'), { target: { value: 'weekly' } });
+    expect(screen.getByLabelText('Anytime during the week, due Sunday')).toHaveProperty('checked', true);
+    fireEvent.click(screen.getByLabelText('On selected day(s)'));
+    expect(screen.getByLabelText('Sun')).toHaveProperty('checked', true);
+    fireEvent.change(screen.getByLabelText('Repeat'), { target: { value: 'interval_weeks' } });
+    fireEvent.change(screen.getByLabelText('Repeat interval'), { target: { value: '2' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => {
+      const request = mock.mock.calls.find(([url, init]) => String(url).endsWith('/schedules/weekly') && init?.method === 'PUT');
+      expect(JSON.parse(request![1]!.body as string)).toMatchObject({ frequency: 'interval_weeks', intervalCount: 2 });
+    });
+  });
+  it('renders an exception preview when its start and due dates match', async () => {
+    await openEditor();
+    expect(screen.getByText(/2099-01-05 · Porter/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Exception' }));
+    expect(screen.getByLabelText('Original scheduled date')).toHaveProperty('value', '2099-01-05');
+  });
+  it('handles preview exceptions endpoint failures', async () => {
+    mock.mockImplementation(async (url, init) => {
+      if (init?.method) return ok({});
+      if (String(url).endsWith('/preview')) return ok({ occurrences: [] });
+      if (String(url).endsWith('/exceptions')) return ok({}, 503);
+      if (String(url).endsWith('/children')) return ok({ children });
+      return ok({ schedules });
+    });
+    render(<ParentSettings />);
+    await screen.findByText('Clean bedroom');
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'Could not load schedule preview');
+  });
+  it('clears assignees and rotation when switching away from individual mode', async () => {
+    await openEditor();
+    fireEvent.change(screen.getByLabelText('Who completes it?'), { target: { value: 'either' } });
+    expect(screen.queryByLabelText('Rotate assignment')).toBeNull();
+    expect(screen.getByLabelText('Porter')).toHaveProperty('checked', false);
+    expect(screen.getByLabelText('Miller')).toHaveProperty('checked', false);
+    fireEvent.click(screen.getByLabelText('Miller'));
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => {
+      const request = mock.mock.calls.find(([url, init]) => String(url).endsWith('/schedules/weekly') && init?.method === 'PUT');
+      expect(JSON.parse(request![1]!.body as string)).toMatchObject({ mode: 'either', rotation: 'none', assignees: ['miller'] });
+    });
+  });
   it('reports a failed create request and preserves entered values', async () => {
     mock.mockImplementation(async (url, init) => {
       if (init?.method === 'POST') return ok({}, 500);
