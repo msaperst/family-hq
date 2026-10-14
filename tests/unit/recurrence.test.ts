@@ -158,4 +158,24 @@ describe('recurrence engine', () => {
       expect(previewOccurrences(db,'schedule','2026-10-12','2026-10-14')).toEqual([]);
     } finally { db.close(); }
   });
+  it('excludes a moved occurrence whose destination is outside the requested window', () => {
+    const db = fixture();
+    try {
+      db.prepare("INSERT INTO occurrence_overrides (id,schedule_id,original_date,action,new_date) VALUES ('outside','schedule','2026-10-12','move','2026-10-25')").run();
+      expect(previewOccurrences(db,'schedule','2026-10-12','2026-10-14').map(x=>x.key))
+        .toEqual(['schedule:2026-10-13','schedule:2026-10-14']);
+    } finally {db.close();}
+  });
+  it('rejects an invalid interval in a database with check enforcement disabled', () => {
+    const db = fixture();
+    try {
+      db.exec('PRAGMA ignore_check_constraints = ON');
+      db.prepare("UPDATE chore_schedules SET interval_count=0 WHERE id='schedule'").run();
+      db.exec('PRAGMA ignore_check_constraints = OFF');
+      expect(()=>previewOccurrences(db,'schedule','2026-10-12','2026-10-14')).toThrow('Invalid interval');
+    } finally {
+      db.exec('PRAGMA ignore_check_constraints = OFF');
+      db.close();
+    }
+  });
 });

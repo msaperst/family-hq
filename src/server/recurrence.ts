@@ -36,7 +36,7 @@ function due(schedule: Schedule, day: number, anchor: number, weekdays: number[]
   switch (schedule.frequency) {
     case 'once': return day === anchor;
     case 'daily': return weekdays.length === 0 || weekdays.includes(weekday(day));
-    case 'weekly': return weekdays.length === 0 ? day === monday(day) : weekdays.includes(weekday(day));
+    case 'weekly': return weekdays.includes(weekday(day));
     case 'interval_days': return delta % schedule.interval_count === 0 && (weekdays.length === 0 || weekdays.includes(weekday(day)));
     case 'interval_weeks': return (monday(day) - monday(anchor)) / 7 % schedule.interval_count === 0 &&
       (weekdays.length === 0 ? weekday(day) === weekday(anchor) : weekdays.includes(weekday(day)));
@@ -75,7 +75,7 @@ export function previewOccurrences(db: DatabaseSync, scheduleId: string, from: s
   for (const day of [...days].sort((a, b) => a - b)) {
     const origin = formatDate(day);
     if (flexible) {
-      if (day !== monday(day)) continue;
+      // Flexible-week origins are generated on Mondays.
       if (day + 6 < anchor || (schedule.end_date && day > parseDate(schedule.end_date))) continue;
     } else if (!due(schedule, day, anchor, weekdays)) continue;
     const exception = overrides.get(origin);
