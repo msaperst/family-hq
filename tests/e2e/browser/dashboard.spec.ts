@@ -1,33 +1,49 @@
-import { expect, test } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { test } from './fixture.js';
 
-test('renders dynamic columns and overdue work from SQLite', async ({ page }) => {
+test('shows active child columns', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Family HQ' })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Porter' })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Miller' })).toBeVisible();
+});
+test('shows a single shared column', async ({ page }) => {
+  await page.goto('/');
   const shared = page.getByRole('region', { name: 'Either child' });
-  await expect(shared).toBeVisible();
-  await expect(shared.getByText('Feed pets').first()).toBeVisible();
+  await expect(shared.locator('label.chore').filter({ hasText: 'Feed pets' })).toHaveCount(1);
+});
+test('shows overdue chores with their original due date', async ({ page }) => {
+  await page.goto('/');
   const porter = page.getByRole('region', { name: 'Porter' });
   await expect(porter.getByText('Put laundry away')).toBeVisible();
   await expect(porter.getByText('Yesterday · Overdue')).toBeVisible();
-  await expect(porter.getByText('Clean bedroom')).toBeVisible();
 });
-test('completes and unchecks a chore with persistence across reload', async ({ page }) => {
+test('shows flexible weekly chores before the deadline', async ({ page }) => {
   await page.goto('/');
-  const porter = page.getByRole('region', { name: 'Porter' });
-  const laundry = porter.locator('label.chore').filter({ hasText: 'Put laundry away' });
+  await expect(page.getByRole('region', { name: 'Porter' }).getByText('Clean bedroom')).toBeVisible();
+});
+test('removes a completed overdue chore after reload', async ({ page }) => {
+  await page.goto('/');
+  const laundry = page.getByRole('region', { name: 'Porter' }).locator('label.chore').filter({ hasText: 'Put laundry away' });
   await laundry.getByRole('checkbox').click();
   await expect(laundry).toHaveCount(0);
   await page.reload();
-  await expect(porter.getByText('Put laundry away')).toHaveCount(0);
-  const bed = porter.locator('label.chore').filter({ hasText: 'Make bed' }).first();
-  await bed.getByRole('checkbox').click();
-  await expect(bed.getByRole('checkbox')).toBeChecked();
+  await expect(laundry).toHaveCount(0);
+});
+test('persists completion across reload', async ({ page }) => {
+  await page.goto('/');
+  const bed = page.getByRole('region', { name: 'Porter' }).locator('label.chore').filter({ hasText: 'Make bed' }).first().getByRole('checkbox');
+  await bed.click();
+  await expect(bed).toBeChecked();
   await page.reload();
-  await expect(porter.locator('label.chore').filter({ hasText: 'Make bed' }).first().getByRole('checkbox')).toBeChecked();
-  await porter.locator('label.chore').filter({ hasText: 'Make bed' }).first().getByRole('checkbox').click();
-  await expect(porter.locator('label.chore').filter({ hasText: 'Make bed' }).first().getByRole('checkbox')).not.toBeChecked();
+  await expect(bed).toBeChecked();
+});
+test('supports undoing a completed chore', async ({ page }) => {
+  await page.goto('/');
+  const bed = page.getByRole('region', { name: 'Porter' }).locator('label.chore').filter({ hasText: 'Make bed' }).first().getByRole('checkbox');
+  await bed.click();
+  await expect(bed).toBeChecked();
+  await bed.click();
+  await expect(bed).not.toBeChecked();
 });
 test('hides later daily chores until Show more is selected', async ({ page }) => {
   await page.goto('/');

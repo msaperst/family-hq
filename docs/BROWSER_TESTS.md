@@ -63,3 +63,7 @@ npx playwright show-report
 See `docs/API.md` for the API contract and `docs/RECURRENCE.md` for recurrence behavior.
 
 If a Playwright failure still references `locator.check()` on `dashboard.spec.ts:28`, confirm you pulled the latest feature branch: the updated test uses `.click()` because completing overdue chores unmounts their checkbox. Run `grep -n '\.check()' tests/e2e/browser/dashboard.spec.ts` to confirm.
+
+## Test isolation
+
+Each Playwright test starts its own Fastify/Vite process on dynamically allocated loopback ports and initializes a new SQLite database under a uniquely named temporary directory. The test fixture stops the process and removes the database after the test. This means tests can run individually, in any order, or in parallel without sharing completion state. The seed is applied before the server starts; no SQL cleanup is attempted against a live database. Each test focuses on one observable behavior.
