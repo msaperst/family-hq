@@ -8,7 +8,24 @@ function validDate(value: unknown): value is string {
   const parsed = Date.parse(value + 'T00:00:00Z');
   return Number.isFinite(parsed) && new Date(parsed).toISOString().slice(0, 10) === value;
 }
+export function isTrustedLanAddress(ip: string): boolean {
+  const address = ip.startsWith('::ffff:') ? ip.slice(7) : ip;
+  if (address === '::1' || address === '127.0.0.1') return true;
+  const parts = address.split('.');
+  if (parts.length === 4 && parts.every(part => /^\d{1,3}$/.test(part) && Number(part) <= 255)) {
+    const [a, b] = parts.map(Number);
+    return a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a === 127;
+  }
+  return /^f[cd][0-9a-f]{2}:/i.test(address);
+}
 export function registerChoreApi(app: FastifyInstance, db: DatabaseSync): void {
+  app.addHook('onRequest', (request, reply, done) => {
+    if (request.url.startsWith('/api/') && request.url !== '/api/health' && !isTrustedLanAddress(request.ip)) {
+      void reply.code(403).send({ error: 'Household LAN access only' });
+      return;
+    }
+    done();
+  });
   app.get('/api/children', () => ({ children: children(db) }));
   app.get<{ Querystring: { date?: string; more?: string } }>('/api/chores', (request, reply) => {
     const { date, more } = request.query;

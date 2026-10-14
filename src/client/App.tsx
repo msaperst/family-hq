@@ -98,6 +98,8 @@ export function App() {
             })}
           </section>;
         })}
+        {!more && column.chores.every(chore => sectionFor(chore, today) === 'upcoming') &&
+          <p className="upcoming-hint">Chores coming up. Select “Show more upcoming chores” to see them.</p>}
       </section>)}
     </div>}
     <button type="button" className="show-more" onClick={() => setMore(value => !value)}>{more ? 'Hide upcoming chores' : 'Show more upcoming chores'}</button>
