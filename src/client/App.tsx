@@ -86,7 +86,8 @@ export function App() {
       if (!response.ok) throw new Error('Could not save completion');
       if (chore.dueOn < today) {
         if (!chore.completed) {
-          const columnId = chore.mode === 'either' ? 'either' : chore.childId;
+          // Individual/each chores are assigned to a child by the dashboard API.
+          const columnId = chore.mode === 'either' ? 'either' : chore.childId!;
           setUndoEntries(entries => [...entries.filter(entry => entry.chore.id !== chore.id), {
             chore: { ...chore, completed: true }, columnId, expiresAt: Date.now() + OVERDUE_UNDO_MS,
           }]);
