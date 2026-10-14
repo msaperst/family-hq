@@ -100,6 +100,7 @@ export function registerParentApi(app: FastifyInstance, db: DatabaseSync): void 
     if (!db.prepare('SELECT id FROM chore_schedules WHERE id = ?').get(request.params.id))
       return reply.code(404).send({ error: 'Schedule not found' });
     const from = request.query.from ?? localToday();
+    if (!validDate(from)) return reply.code(400).send({ error: 'Invalid preview date range' });
     const to = request.query.to ?? new Date(Date.parse(from + 'T00:00:00Z') + 28 * 86400000).toISOString().slice(0, 10);
     if (!validDate(from) || !validDate(to) || to < from ||
         (Date.parse(to) - Date.parse(from)) / 86400000 > 366)

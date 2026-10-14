@@ -255,6 +255,34 @@ describe('parent schedule API', () => {
     expect((await app.inject({ method: 'DELETE', url: base + '2099-01-05' })).statusCode).toBe(409);
     expect(db.prepare("SELECT id FROM chore_occurrences WHERE id = 'audited'").get()).toBeDefined();
   });
+
+  it('rejects invalid preview from dates even when to is omitted', async () => {
+    const created = await app.inject({ method: 'POST', url: '/api/parent/schedules', payload });
+    for (const from of ['garbage', '2026-02-30', '2026-13-01', '']) {
+      const result = await app.inject({ method: 'GET',
+        url: '/api/parent/schedules/' + created.json().id + '/preview?from=' + encodeURIComponent(from) });
+      expect(result.statusCode, from).toBe(400);
+      expect(result.json()).toEqual({ error: 'Invalid preview date range' });
+    }
+  });
+  it('replaces and removes an existing persisted future occurrence when overriding it', async () => {
+    const created = await app.inject({ method: 'POST', url: '/api/parent/schedules', payload });
+    const { id, choreId } = created.json() as { id: string; choreId: string };
+    const date = '2099-01-05';
+    const insert = () => {
+      db.prepare(`INSERT INTO chore_occurrences (id, occurrence_key, chore_id, schedule_id, starts_on, due_on, mode)
+        VALUES ('replaceable', ?, ?, ?, ?, ?, 'individual')`).run(id + ':' + date, choreId, id, date, date);
+      db.prepare("INSERT INTO occurrence_assignees (occurrence_id, child_id) VALUES ('replaceable', 'porter')").run();
+    };
+    insert();
+    const url = '/api/parent/schedules/' + id + '/exceptions/' + date;
+    expect((await app.inject({ method: 'PUT', url, payload: { action: 'skip' } })).statusCode).toBe(200);
+    expect(db.prepare("SELECT id FROM chore_occurrences WHERE id = 'replaceable'").get()).toBeUndefined();
+    insert();
+    expect((await app.inject({ method: 'DELETE', url })).statusCode).toBe(200);
+    expect(db.prepare("SELECT id FROM chore_occurrences WHERE id = 'replaceable'").get()).toBeUndefined();
+    expect((await app.inject({ method: 'GET', url: '/api/parent/schedules/' + id + '/exceptions' })).json().exceptions).toEqual([]);
+  });
   it('rejects invalid pause payload and unknown schedules', async () => {
     expect((await app.inject({ method: 'PATCH', url: '/api/parent/schedules/unknown', payload: { paused: true } })).statusCode).toBe(404);
     expect((await app.inject({ method: 'PATCH', url: '/api/parent/schedules/unknown', payload: { paused: 'yes' } })).statusCode).toBe(400);
