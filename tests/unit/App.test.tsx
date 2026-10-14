@@ -82,6 +82,33 @@ describe('Family HQ dashboard', () => {
     render(<App />);
     expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'offline');
   });
+  it('reports non-OK dashboard responses', async () => {
+    fetchMock.mockResolvedValue({ ok: false } as Response);
+    render(<App />);
+    expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'Unable to load chores');
+  });
+  it('reports a failed completion without claiming success', async () => {
+    fetchMock.mockImplementation(async (_url, options) => {
+      if (options && 'method' in options && options.method === 'PUT') return { ok: false } as Response;
+      return response();
+    });
+    render(<App />);
+    await screen.findByText('Make bed');
+    fireEvent.click(screen.getByRole('checkbox', { name: /Make bed/ }));
+    expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'Could not save completion');
+    expect(screen.getByRole('checkbox', { name: /Make bed/ })).toHaveProperty('checked', false);
+  });
+  it('reports completion network errors and restores the control', async () => {
+    fetchMock.mockImplementation(async (_url, options) => {
+      if (options && 'method' in options && options.method === 'PUT') throw new Error('Network lost');
+      return response();
+    });
+    render(<App />);
+    await screen.findByText('Make bed');
+    fireEvent.click(screen.getByRole('checkbox', { name: /Make bed/ }));
+    expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'Network lost');
+    await waitFor(() => expect(screen.getByRole('checkbox', { name: /Make bed/ })).toHaveProperty('disabled', false));
+  });
   it('aborts the outstanding request on unmount', () => {
     fetchMock.mockReturnValue(new Promise(() => {}));
     const { unmount } = render(<App />);
