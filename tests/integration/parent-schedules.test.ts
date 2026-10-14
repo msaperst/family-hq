@@ -214,6 +214,47 @@ describe('parent schedule API', () => {
     const list = await app.inject({ method: 'GET', url: '/api/parent/schedules/' + created.json().id + '/exceptions' });
     expect(list.json().exceptions).toEqual([expect.objectContaining({ action: 'skip', originalDate: '2099-01-05' })]);
   });
+
+  it('validates schedule input boundary combinations', async () => {
+    const invalid = [
+      null, {}, { ...payload, name: '' }, { ...payload, name: 'x'.repeat(121) },
+      { ...payload, mode: 'unknown' }, { ...payload, frequency: 'hourly' },
+      { ...payload, intervalCount: 1.5 }, { ...payload, intervalCount: 366 },
+      { ...payload, weekdays: [0, 0] }, { ...payload, weekdays: [-1] },
+      { ...payload, anchorDate: 'not-a-date' }, { ...payload, endDate: '2026-10-01' },
+      { ...payload, endDate: '2026-02-30' }, { ...payload, rotation: 'invalid' },
+      { ...payload, assignees: [] }, { ...payload, assignees: [''] },
+      { ...payload, assignees: [123] }, { ...payload, assignees: ['porter', 'porter'] },
+      { ...payload, mode: 'either', rotation: 'weekly' },
+      { ...payload, weekdays: [], intervalCount: 2 },
+    ];
+    for (const input of invalid) {
+      const result = await app.inject({ method: 'POST', url: '/api/parent/schedules', payload: input });
+      expect(result.statusCode, JSON.stringify(input)).toBe(400);
+    }
+    expect(db.prepare('SELECT COUNT(*) AS n FROM chore_schedules').get()).toMatchObject({ n: 0 });
+  });
+  it('validates exception date, action and completion event conflicts', async () => {
+    const created = await app.inject({ method: 'POST', url: '/api/parent/schedules', payload });
+    const { id, choreId } = created.json() as { id: string; choreId: string };
+    const base = '/api/parent/schedules/' + id + '/exceptions/';
+    for (const [date, input] of [
+      ['2026-02-30', { action: 'skip' }],
+      ['2099-01-05', { action: 'move', newDate: '2026-02-30' }],
+      ['2099-01-05', { action: 'reassign' }],
+      ['2099-01-05', { action: 'skip', newDate: '2099-01-06' }],
+    ] as const) {
+      expect((await app.inject({ method: 'PUT', url: base + date, payload: input })).statusCode).toBe(400);
+    }
+    db.prepare(`INSERT INTO chore_occurrences (id, occurrence_key, chore_id, schedule_id, starts_on, due_on, mode)
+      VALUES ('audited', ?, ?, ?, '2099-01-05', '2099-01-05', 'individual')`)
+      .run(id + ':2099-01-05', choreId, id);
+    db.prepare(`INSERT INTO completion_events (occurrence_id, child_id, completed, occurred_at)
+      VALUES ('audited', '', 0, '2026-10-14T12:00:00Z')`).run();
+    expect((await app.inject({ method: 'PUT', url: base + '2099-01-05', payload: { action: 'skip' } })).statusCode).toBe(409);
+    expect((await app.inject({ method: 'DELETE', url: base + '2099-01-05' })).statusCode).toBe(409);
+    expect(db.prepare("SELECT id FROM chore_occurrences WHERE id = 'audited'").get()).toBeDefined();
+  });
   it('rejects invalid pause payload and unknown schedules', async () => {
     expect((await app.inject({ method: 'PATCH', url: '/api/parent/schedules/unknown', payload: { paused: true } })).statusCode).toBe(404);
     expect((await app.inject({ method: 'PATCH', url: '/api/parent/schedules/unknown', payload: { paused: 'yes' } })).statusCode).toBe(400);
