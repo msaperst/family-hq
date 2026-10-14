@@ -121,4 +121,12 @@ describe('recurrence engine', () => {
       expect(occurrences.map(x => x.key)).toEqual(['schedule:2026-10-12', 'schedule:2026-10-18']);
     } finally { db.close(); }
   });
+  it('generates weekly chores only on selected weekdays', () => {
+    const db = fixture({frequency:'weekly', weekdays:[1,4]});
+    try {
+      expect(previewOccurrences(db,'schedule','2026-10-12','2026-10-25').map(x=>x.startsOn))
+        .toEqual(['2026-10-13','2026-10-16','2026-10-20','2026-10-23']);
+      expect(generateOccurrences(db,'schedule','2026-10-12','2026-10-25')).toHaveLength(4);
+    } finally { db.close(); }
+  });
 });
