@@ -95,6 +95,35 @@ describe('additional parent settings interactions', () => {
     await waitFor(() => expect(mock).toHaveBeenCalledWith('/api/parent/schedules/weekly/exceptions/2026-12-07',
       expect.objectContaining({ method: 'DELETE' })));
   });
+
+  it('removes an assigned child when toggled off in multi-child mode', async () => {
+    render(<ParentSettings />);
+    await screen.findByText('Clean bedroom');
+    fireEvent.change(screen.getByLabelText('Who completes it?'), { target: { value: 'either' } });
+    fireEvent.click(screen.getByLabelText('Porter'));
+    fireEvent.click(screen.getByLabelText('Miller'));
+    fireEvent.click(screen.getByLabelText('Porter'));
+    expect(screen.getByLabelText('Porter')).toHaveProperty('checked', false);
+    expect(screen.getByLabelText('Miller')).toHaveProperty('checked', true);
+    fireEvent.change(screen.getByLabelText('Chore name'), { target: { value: 'Feed fish' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add chore' }));
+    await waitFor(() => expect(mock).toHaveBeenCalledWith('/api/parent/schedules',
+      expect.objectContaining({ method: 'POST', body: expect.stringContaining('"assignees":["miller"]') })));
+  });
+  it('sends changed start and end dates and preserves them when editing', async () => {
+    await edit();
+    fireEvent.change(screen.getByLabelText('Start date'), { target: { value: '2026-11-02' } });
+    fireEvent.change(screen.getByLabelText('End date (optional)'), { target: { value: '2026-12-28' } });
+    expect(screen.getByLabelText('End date (optional)')).toHaveProperty('min', '2026-11-02');
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => {
+      const request = mock.mock.calls.find(call => String(call[0]).endsWith('/schedules/weekly') && call[1]?.method === 'PUT');
+      expect(request).toBeDefined();
+      expect(JSON.parse(request![1]!.body as string)).toMatchObject({
+        anchorDate: '2026-11-02', endDate: '2026-12-28',
+      });
+    });
+  });
   it('shows save, pause and exception API failures', async () => {
     mock.mockImplementation(async (url, options) => {
       if (options?.method) return response({ error: 'Rejected by API' }, false);
