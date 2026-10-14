@@ -1,4 +1,25 @@
-html { font-family: system-ui, sans-serif; color-scheme: light dark; }
+html { font-family: system-ui, sans-serif; color-scheme: light; background: #f5f6fa; color: #222c3d; }
 body { margin: 0; }
-main { max-width: 48rem; padding: 2rem; margin: 2rem auto; }
-h1 { font-size: clamp(2rem, 5vw, 3rem); }
+* { box-sizing: border-box; }
+.dashboard { max-width: 1400px; padding: 24px; margin: 0 auto; }
+.dashboard-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 24px; }
+h1 { font-size: clamp(1.8rem, 4vw, 2.5rem); margin: 0; }
+.dashboard-header p, .column-heading p { margin: 4px 0; color: #657084; }
+.connection { background: #e4f4e9; color: #166334; border-radius: 30px; padding: 8px 14px; font-size: .85rem; }
+.columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 275px), 1fr)); gap: 16px; align-items: stretch; }
+.column { background: #e9edf4; border-radius: 16px; padding: 16px; min-width: 0; }
+.column-heading { text-align: center; padding: 8px 0 16px; }
+.column-heading h2 { margin: 0; font-size: 1.35rem; }
+.chore-group { margin: 0 0 22px; }
+.chore-group h3 { font-size: .85rem; color: #59677b; margin: 0 0 10px; }
+.chore { display: flex; gap: 12px; align-items: flex-start; background: white; border-radius: 12px; padding: 15px 12px; margin: 8px 0; cursor: pointer; min-height: 64px; }
+.chore input { width: 23px; height: 23px; flex-shrink: 0; margin: 0; accent-color: #347856; cursor: pointer; }
+.chore input:disabled { cursor: wait; }
+.chore-name { display: block; font-weight: 600; line-height: 1.35; }
+.chore-name.completed { text-decoration: line-through; color: #6d7889; }
+.chore small { display: block; color: #657084; margin-top: 5px; }
+.overdue { color: #b43e3e !important; }
+.show-more { display: block; margin: 24px auto; border: 1px solid #a9b3c2; background: white; padding: 12px 22px; border-radius: 12px; cursor: pointer; font-size: 1rem; }
+.error { color: #b43e3e; }
+.empty { text-align: center; padding: 50px 0; }
+@media (max-width: 540px) { .dashboard { padding: 14px; } .dashboard-header { align-items: flex-start; } .connection { font-size: .75rem; } }
