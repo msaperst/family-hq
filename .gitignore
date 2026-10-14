@@ -4,6 +4,7 @@ coverage/
 .env
 .env.*
 !.env.example
-*.db
-*.db-shm
-*.db-wal
+data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
