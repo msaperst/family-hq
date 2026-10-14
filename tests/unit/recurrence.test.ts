@@ -73,4 +73,44 @@ describe('recurrence engine', () => {
       expect(()=>previewOccurrences(db,'missing','2026-10-12','2026-10-13')).toThrow('Schedule not found');
     } finally {db.close();}
   });
+  it('rejects invalid weekday JSON values and out-of-range weekday numbers', () => {
+    const db = fixture();
+    try {
+      for (const value of ['"Monday"', '[7]', '[-1]', '[1.5]', '[null]', '{}']) {
+        db.prepare('UPDATE chore_schedules SET weekdays = ? WHERE id = ?').run(value, 'schedule');
+        expect(() => previewOccurrences(db, 'schedule', '2026-10-12', '2026-10-18')).toThrow('Weekdays must be');
+      }
+    } finally { db.close(); }
+  });
+  it('deduplicates repeated weekdays instead of generating duplicate obligations', () => {
+    const db = fixture({weekdays:[0,0,2,2]});
+    try {
+      expect(generateOccurrences(db,'schedule','2026-10-12','2026-10-18').map(x=>x.startsOn)).toEqual(['2026-10-12','2026-10-14']);
+      expect((db.prepare('SELECT count(*) AS n FROM chore_occurrences').get() as {n:number}).n).toBe(2);
+    } finally { db.close(); }
+  });
+  it('rejects an individual schedule with multiple assignees and an empty schedule', () => {
+    const db = fixture({children:['porter','miller']});
+    try {
+      expect(()=>previewOccurrences(db,'schedule','2026-10-12','2026-10-13')).toThrow('Invalid schedule assignees');
+      db.prepare("DELETE FROM schedule_assignees WHERE schedule_id = 'schedule'").run();
+      expect(()=>previewOccurrences(db,'schedule','2026-10-12','2026-10-13')).toThrow('Invalid schedule assignees');
+    } finally { db.close(); }
+  });
+  it('honors schedule end dates and one-time recurrence', () => {
+    const db = fixture({frequency:'once',anchor:'2026-10-12'});
+    try {
+      expect(previewOccurrences(db,'schedule','2026-10-12','2026-10-20')).toHaveLength(1);
+      db.prepare("UPDATE chore_schedules SET frequency='daily', end_date='2026-10-14' WHERE id='schedule'").run();
+      expect(previewOccurrences(db,'schedule','2026-10-12','2026-10-20').map(x=>x.startsOn)).toEqual(['2026-10-12','2026-10-13','2026-10-14']);
+    } finally { db.close(); }
+  });
+  it('rejects invalid date formats and excessively large ranges', () => {
+    const db = fixture();
+    try {
+      expect(()=>previewOccurrences(db,'schedule','10/12/2026','2026-10-13')).toThrow('Invalid local date');
+      expect(()=>previewOccurrences(db,'schedule','2026-10-12','2028-10-12')).toThrow('Date range');
+    } finally {db.close();}
+  });
+
 });
