@@ -89,7 +89,7 @@ export function App() {
     </header>
     {error && <p role="alert" className="error">{error}</p>}
     {!data && !error && <p>Loading chores…</p>}
-    {data && data.columns.length === 0 && <p className="empty">No chores scheduled. Everyone's caught up!</p>}
+    {data?.columns.length === 0 && <p className="empty">No chores scheduled. Everyone's caught up!</p>}
     {data && <div className="columns">
       {data.columns.map(column => <section className="column" key={column.id} aria-label={column.name}>
         <div className="column-heading"><h2>{column.name}</h2><p>{column.chores.filter(chore => chore.completed).length} completed</p></div>
@@ -102,7 +102,7 @@ export function App() {
             {chores.map(chore => {
               const key = chore.id + ':' + (chore.childId ?? '');
               return <label className="chore" key={key}>
-                <input type="checkbox" checked={chore.completed} disabled={pending.includes(key)} onChange={() => { void toggle(chore); }} />
+                <input type="checkbox" aria-label={`${chore.name} · ${dueLabel(chore, today)}`} checked={chore.completed} disabled={pending.includes(key)} onChange={() => { void toggle(chore); }} />
                 <span><span className={chore.completed ? 'chore-name completed' : 'chore-name'}>{chore.name}</span><small className={group.id === 'overdue' ? 'overdue' : ''}>{dueLabel(chore, today)}</small></span>
               </label>;
             })}
