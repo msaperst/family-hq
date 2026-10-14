@@ -1,0 +1,76 @@
+import { randomUUID } from 'node:crypto';
+import type { DatabaseSync } from 'node:sqlite';
+import type { FastifyInstance } from 'fastify';
+
+type Mode = 'individual' | 'either' | 'each';
+type Frequency = 'once' | 'daily' | 'weekly' | 'interval_days' | 'interval_weeks';
+type Rotation = 'none' | 'daily' | 'weekly';
+interface ScheduleInput {
+  name: string; mode: Mode; frequency: Frequency; intervalCount: number;
+  weekdays: number[]; anchorDate: string; endDate: string | null;
+  rotation: Rotation; assignees: string[];
+}
+function validDate(value: unknown): value is string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const time = Date.parse(value + 'T00:00:00Z');
+  return Number.isFinite(time) && new Date(time).toISOString().slice(0, 10) === value;
+}
+function validInput(value: unknown): value is ScheduleInput {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as Partial<ScheduleInput>;
+  return typeof v.name === 'string' && v.name.trim().length > 0 && v.name.length <= 120 &&
+    ['individual', 'either', 'each'].includes(v.mode ?? '') &&
+    ['once', 'daily', 'weekly', 'interval_days', 'interval_weeks'].includes(v.frequency ?? '') &&
+    Number.isInteger(v.intervalCount) && (v.intervalCount ?? 0) >= 1 && (v.intervalCount ?? 0) <= 365 &&
+    Array.isArray(v.weekdays) && v.weekdays.every(day => Number.isInteger(day) && day >= 0 && day <= 6) &&
+    new Set(v.weekdays).size === v.weekdays.length &&
+    validDate(v.anchorDate) && (v.endDate === null || validDate(v.endDate)) &&
+    (v.endDate === null || v.endDate! >= v.anchorDate!) &&
+    ['none', 'daily', 'weekly'].includes(v.rotation ?? '') &&
+    Array.isArray(v.assignees) && v.assignees.length > 0 &&
+    v.assignees.every(id => typeof id === 'string' && id.length > 0) &&
+    new Set(v.assignees).size === v.assignees.length &&
+    (v.mode !== 'individual' || v.rotation !== 'none' || v.assignees.length === 1) &&
+    (v.rotation === 'none' || v.mode === 'individual') &&
+    (v.frequency !== 'weekly' || v.weekdays.length > 0 || v.intervalCount === 1);
+}
+export function registerParentApi(app: FastifyInstance, db: DatabaseSync): void {
+  app.get('/api/parent/schedules', () => {
+    const rows = db.prepare(`SELECT s.*, c.name FROM chore_schedules s
+      JOIN chores c ON c.id = s.chore_id ORDER BY c.name, s.id`).all();
+    return { schedules: rows.map(row => {
+      const s = row as Record<string, unknown>;
+      const assignees = db.prepare('SELECT child_id FROM schedule_assignees WHERE schedule_id = ? ORDER BY rotation_order').all(s.id as string) as { child_id: string }[];
+      return { id: s.id, choreId: s.chore_id, name: s.name, mode: s.mode, frequency: s.frequency,
+        intervalCount: s.interval_count, weekdays: JSON.parse(s.weekdays as string), anchorDate: s.anchor_date,
+        endDate: s.end_date, rotation: s.rotation, paused: Boolean(s.paused), assignees: assignees.map(a => a.child_id) };
+    }) };
+  });
+  app.post<{ Body: ScheduleInput }>('/api/parent/schedules', (request, reply) => {
+    if (!validInput(request.body)) return reply.code(400).send({ error: 'Invalid schedule' });
+    const input = request.body;
+    const known = db.prepare(`SELECT id FROM children WHERE active = 1`).all() as { id: string }[];
+    if (input.assignees.some(id => !known.some(child => child.id === id))) return reply.code(400).send({ error: 'Unknown or inactive child' });
+    const id = randomUUID(), choreId = randomUUID();
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      db.prepare('INSERT INTO chores (id, name) VALUES (?, ?)').run(choreId, input.name.trim());
+      db.prepare(`INSERT INTO chore_schedules
+        (id, chore_id, mode, frequency, interval_count, weekdays, anchor_date, end_date, rotation)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run(id, choreId, input.mode, input.frequency, input.intervalCount, JSON.stringify(input.weekdays),
+          input.anchorDate, input.endDate, input.rotation);
+      const assign = db.prepare('INSERT INTO schedule_assignees (schedule_id, child_id, rotation_order) VALUES (?, ?, ?)');
+      input.assignees.forEach((child, index) => assign.run(id, child, index));
+      db.exec('COMMIT');
+    } catch (error) { db.exec('ROLLBACK'); throw error; }
+    return reply.code(201).send({ id, choreId });
+  });
+  app.patch<{ Params: { id: string }; Body: { paused?: boolean } }>('/api/parent/schedules/:id', (request, reply) => {
+    if (!request.body || typeof request.body.paused !== 'boolean' || Object.keys(request.body).length !== 1)
+      return reply.code(400).send({ error: 'Invalid schedule update' });
+    const result = db.prepare('UPDATE chore_schedules SET paused = ? WHERE id = ?').run(Number(request.body.paused), request.params.id);
+    if (!result.changes) return reply.code(404).send({ error: 'Schedule not found' });
+    return { id: request.params.id, paused: request.body.paused };
+  });
+}

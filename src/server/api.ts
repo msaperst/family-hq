@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { DatabaseSync } from 'node:sqlite';
 import { children, dashboard, localToday } from './dashboard.js';
 import { setCompletion } from './chores.js';
+import { registerParentApi } from './parent.js';
 
 function validDate(value: unknown): value is string {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -19,6 +20,7 @@ export function isTrustedLanAddress(ip: string): boolean {
   return /^f[cd][0-9a-f]{2}:/i.test(address);
 }
 export function registerChoreApi(app: FastifyInstance, db: DatabaseSync): void {
+  registerParentApi(app, db);
   app.addHook('onRequest', (request, reply, done) => {
     if (request.url.startsWith('/api/') && request.url !== '/api/health' && !isTrustedLanAddress(request.ip)) {
       void reply.code(403).send({ error: 'Household LAN access only' });
