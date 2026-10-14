@@ -30,7 +30,9 @@ export function dashboard(db: DatabaseSync, today: string, extraDays = 0): Dashb
     LEFT JOIN chore_completions co ON co.occurrence_id = o.id
       AND co.child_id = CASE WHEN o.mode = 'each' THEN a.child_id ELSE '' END
     JOIN children child ON child.id = a.child_id
+    LEFT JOIN chore_schedules schedule ON schedule.id = o.schedule_id
     WHERE o.status = 'active' AND c.archived = 0 AND child.active = 1
+      AND (schedule.id IS NULL OR schedule.paused = 0)
       AND o.starts_on <= ? AND (o.due_on >= ? OR COALESCE(co.completed, 0) = 0)
     ORDER BY o.due_on, c.name, o.id
   `).all(through, today) as unknown as OccurrenceRow[];
