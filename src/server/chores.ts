@@ -54,7 +54,7 @@ export function setCompletion(db: DatabaseSync, occurrenceId: string, childId: s
   return transaction(db, () => {
     const occurrence = db.prepare('SELECT mode, status FROM chore_occurrences WHERE id = ?').get(occurrenceId) as
       { mode: CompletionMode; status: string } | undefined;
-    if (!occurrence || occurrence.status !== 'active') throw new Error('Active occurrence not found');
+    if (occurrence?.status !== 'active') throw new Error('Active occurrence not found');
     const assignees = new Set((db.prepare('SELECT child_id FROM occurrence_assignees WHERE occurrence_id = ?').all(occurrenceId) as { child_id: string }[]).map(x => x.child_id));
     const key = occurrence.mode === 'each' ? childId : '';
     if (key === null || (occurrence.mode === 'each' && !assignees.has(key))) throw new Error('Invalid completion target');
