@@ -1,4 +1,12 @@
+import { DatabaseSync } from 'node:sqlite';
 import { expect, test } from '@playwright/test';
+
+test.beforeEach(async ({}, testInfo) => {
+  const db = new DatabaseSync(testInfo.config.metadata.dbPath as string);
+  try {
+    db.exec('DELETE FROM completion_events; DELETE FROM chore_completions;');
+  } finally { db.close(); }
+});
 
 test('renders dynamic columns and overdue work from SQLite', async ({ page }) => {
   await page.goto('/');
