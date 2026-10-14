@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import type { DashboardChore, DashboardResponse } from '../shared/dashboard';
 
 const REFRESH_MS = 30_000;
+export const OVERDUE_UNDO_MS = 30_000;
+type UndoEntry = { chore: DashboardChore; columnId: string; expiresAt: number };
 function phoenixDate(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Phoenix', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 }
@@ -47,6 +49,13 @@ export function App() {
   const [error, setError] = useState('');
   const [pending, setPending] = useState<string[]>([]);
   const [today, setToday] = useState(phoenixDate);
+  const [undoEntries, setUndoEntries] = useState<UndoEntry[]>([]);
+  useEffect(() => {
+    if (!undoEntries.length) return;
+    const delay = Math.max(0, Math.min(...undoEntries.map(entry => entry.expiresAt)) - Date.now());
+    const timeout = setTimeout(() => setUndoEntries(entries => entries.filter(entry => entry.expiresAt > Date.now())), delay);
+    return () => clearTimeout(timeout);
+  }, [undoEntries]);
   const refresh = useCallback(async (signal?: AbortSignal) => {
     try {
       const response = await fetch(`/api/chores?more=${more}`, { signal });
@@ -75,6 +84,16 @@ export function App() {
         body: JSON.stringify({ childId: chore.childId, completed: !chore.completed }),
       });
       if (!response.ok) throw new Error('Could not save completion');
+      if (chore.dueOn < today) {
+        if (!chore.completed) {
+          const columnId = chore.mode === 'either' ? 'either' : chore.childId;
+          if (columnId) setUndoEntries(entries => [...entries.filter(entry => entry.chore.id !== chore.id), {
+            chore: { ...chore, completed: true }, columnId, expiresAt: Date.now() + OVERDUE_UNDO_MS,
+          }]);
+        } else {
+          setUndoEntries(entries => entries.filter(entry => entry.chore.id !== chore.id));
+        }
+      }
       await refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not save completion');
@@ -91,11 +110,14 @@ export function App() {
     {!data && !error && <p>Loading chores…</p>}
     {data?.columns.length === 0 && <p className="empty">No chores scheduled. Everyone's caught up!</p>}
     {data && <div className="columns">
-      {data.columns.map(column => <section className="column" key={column.id} aria-label={column.name}>
-        <div className="column-heading"><h2>{column.name}</h2><p>{column.chores.filter(chore => chore.completed).length} completed</p></div>
+      {data.columns.map(column => {
+        const retained = undoEntries.filter(entry => entry.columnId === column.id && entry.expiresAt > Date.now() && !column.chores.some(chore => chore.id === entry.chore.id));
+        const choresForColumn = [...column.chores.map(chore => undoEntries.some(entry => entry.chore.id === chore.id) ? { ...chore, completed: true } : chore), ...retained.map(entry => entry.chore)];
+        return <section className="column" key={column.id} aria-label={column.name}>
+        <div className="column-heading"><h2>{column.name}</h2><p>{choresForColumn.filter(chore => chore.completed).length} completed</p></div>
         {groups.map(group => {
           if (group.id === 'upcoming' && !more) return null;
-          const chores = column.chores.filter(chore => (more || visibleByDefault(chore, today)) && sectionFor(chore, today) === group.id);
+          const chores = choresForColumn.filter(chore => (more || visibleByDefault(chore, today)) && (undoEntries.some(entry => entry.chore.id === chore.id) ? 'overdue' : sectionFor(chore, today)) === group.id);
           if (!chores.length) return null;
           return <section key={group.id} className="chore-group">
             <h3 className={group.id === 'overdue' ? 'overdue' : ''}>{group.title}</h3>
@@ -108,9 +130,9 @@ export function App() {
             })}
           </section>;
         })}
-        {!more && column.chores.every(chore => !visibleByDefault(chore, today)) &&
+        {!more && choresForColumn.every(chore => !visibleByDefault(chore, today)) &&
           <p className="upcoming-hint">Chores coming up. Select “Show more upcoming chores” to see them.</p>}
-      </section>)}
+      </section>; })}
     </div>}
     <button type="button" className="show-more" onClick={() => setMore(value => !value)}>{more ? 'Hide upcoming chores' : 'Show more upcoming chores'}</button>
   </main>;

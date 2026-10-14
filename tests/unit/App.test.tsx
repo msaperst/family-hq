@@ -237,3 +237,48 @@ describe('Family HQ dashboard', () => {
     expect(signal?.aborted).toBe(true);
   });
 });
+
+describe('overdue completion undo window', () => {
+  it('keeps an overdue completion checked even when the server omits it, and supports undo', async () => {
+    let completed = false;
+    fetchMock.mockImplementation(async (_url, options) => {
+      if (options && 'method' in options && options.method === 'PUT') {
+        completed = JSON.parse(options.body as string).completed as boolean;
+        return { ok: true } as Response;
+      }
+      return response({ ...fixture, columns: fixture.columns.map(column => ({ ...column,
+        chores: column.chores.filter(chore => chore.id !== 'overdue' || !completed),
+      })) });
+    });
+    render(<App />);
+    const checkbox = await screen.findByRole('checkbox', { name: /Laundry/ });
+    fireEvent.click(checkbox);
+    await waitFor(() => expect(checkbox).toHaveProperty('checked', true));
+    fireEvent(document, new Event('visibilitychange'));
+    expect(screen.getByRole('checkbox', { name: /Laundry/ })).toHaveProperty('checked', true);
+    fireEvent.click(screen.getByRole('checkbox', { name: /Laundry/ }));
+    await waitFor(() => expect(screen.getByRole('checkbox', { name: /Laundry/ })).toHaveProperty('checked', false));
+    expect(completed).toBe(false);
+  });
+  it('expires the locally retained overdue completion after 30 seconds', async () => {
+    vi.useFakeTimers();
+    try {
+      let completed = false;
+      fetchMock.mockImplementation(async (_url, options) => {
+        if (options && 'method' in options && options.method === 'PUT') {
+          completed = true;
+          return { ok: true } as Response;
+        }
+        return response({ ...fixture, columns: fixture.columns.map(column => ({ ...column,
+          chores: column.chores.filter(chore => chore.id !== 'overdue' || !completed),
+        })) });
+      });
+      render(<App />);
+      await vi.waitFor(() => expect(screen.getByRole('checkbox', { name: /Laundry/ })).toBeTruthy());
+      fireEvent.click(screen.getByRole('checkbox', { name: /Laundry/ }));
+      await vi.waitFor(() => expect(screen.getByRole('checkbox', { name: /Laundry/ })).toHaveProperty('checked', true));
+      await vi.advanceTimersByTimeAsync(31_000);
+      expect(screen.queryByRole('checkbox', { name: /Laundry/ })).toBeNull();
+    } finally { vi.useRealTimers(); }
+  });
+});

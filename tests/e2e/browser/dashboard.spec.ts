@@ -22,11 +22,11 @@ test('shows flexible weekly chores before the deadline', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('region', { name: 'Porter' }).getByText('Clean bedroom')).toBeVisible();
 });
-test('removes a completed overdue chore after reload', async ({ page }) => {
+test('retains a completed overdue chore for undo, but hides it after reload', async ({ page }) => {
   await page.goto('/');
   const laundry = page.getByRole('region', { name: 'Porter' }).locator('label.chore').filter({ hasText: 'Put laundry away' });
   await laundry.getByRole('checkbox').click();
-  await expect(laundry).toHaveCount(0);
+  await expect(laundry.getByRole('checkbox')).toBeChecked();
   await page.reload();
   await expect(laundry).toHaveCount(0);
 });
@@ -73,4 +73,25 @@ test('shared completion persists across browser tabs', async ({ browser }) => {
     await second.reload();
     await expect(shared2.locator('label.chore').filter({ hasText: 'Feed pets' }).first().getByRole('checkbox')).toBeChecked();
   } finally { await context.close(); }
+});
+
+test('undoes an overdue completion before the window expires', async ({ page }) => {
+  await page.goto('/');
+  const laundry = page.getByRole('region', { name: 'Porter' }).locator('label.chore').filter({ hasText: 'Put laundry away' });
+  await laundry.getByRole('checkbox').click();
+  await expect(laundry.getByRole('checkbox')).toBeChecked();
+  await laundry.getByRole('checkbox').click();
+  await expect(laundry.getByRole('checkbox')).not.toBeChecked();
+  await page.reload();
+  await expect(laundry.getByRole('checkbox')).not.toBeChecked();
+});
+
+test('completed overdue chore disappears after 30 seconds without reload', async ({ page }) => {
+  await page.clock.install();
+  await page.goto('/');
+  const laundry = page.getByRole('region', { name: 'Porter' }).locator('label.chore').filter({ hasText: 'Put laundry away' });
+  await laundry.getByRole('checkbox').click();
+  await expect(laundry.getByRole('checkbox')).toBeChecked();
+  await page.clock.fastForward(31_000);
+  await expect(laundry).toHaveCount(0);
 });

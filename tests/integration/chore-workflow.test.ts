@@ -56,3 +56,23 @@ describe('seeded household workflow (disposable SQLite)', () => {
     expect((await board('2026-10-14')).columns.some(x => x.id === 'either')).toBe(false);
   });
 });
+
+describe('overdue completion server contract', () => {
+  it('persists completion immediately, omits it on refresh, and allows undo by occurrence id', async () => {
+    const db = openDatabase(':memory:');
+    const app = buildApp({ db });
+    try {
+      addChild(db, 'porter', 'Porter');
+      addChore(db, 'late', 'Late task');
+      db.prepare("INSERT INTO chore_occurrences (id, occurrence_key, chore_id, starts_on, due_on, mode) VALUES ('late-occ', 'late-occ', 'late', '2026-10-12', '2026-10-12', 'individual')").run();
+      db.prepare("INSERT INTO occurrence_assignees (occurrence_id, child_id) VALUES ('late-occ', 'porter')").run();
+      const board = async () => (await app.inject({ method: 'GET', url: '/api/chores?date=2026-10-14' })).json() as DashboardResponse;
+      expect((await board()).columns[0].chores.some(chore => chore.id === 'late-occ')).toBe(true);
+      const toggle = (completed: boolean) => app.inject({ method: 'PUT', url: '/api/chores/late-occ/completion', payload: { childId: 'porter', completed } });
+      expect((await toggle(true)).statusCode).toBe(200);
+      expect((await board()).columns.every(column => column.chores.every(chore => chore.id !== 'late-occ'))).toBe(true);
+      expect((await toggle(false)).statusCode).toBe(200);
+      expect((await board()).columns[0].chores.find(chore => chore.id === 'late-occ')?.completed).toBe(false);
+    } finally { await app.close(); db.close(); }
+  });
+});
