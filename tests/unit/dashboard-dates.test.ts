@@ -42,6 +42,16 @@ describe('dashboard dates', () => {
     expect(visibleByDefault(chore('2026-10-18'), sunday)).toBe(true);
     expect(dueLabel(chore('2026-10-21'), sunday)).toContain('Wednesday');
   });
+  it('does not display completed overdue chores as overdue', () => {
+    const today = '2026-10-14';
+    expect(sectionFor(chore('2026-10-12', true), today)).toBe('today');
+    expect(visibleByDefault(chore('2026-10-12', true), today)).toBe(true);
+  });
+  it('shows flexible obligations that started today but are due later', () => {
+    const today = '2026-10-14';
+    const flexible = { ...chore('2026-10-17'), startsOn: today };
+    expect(visibleByDefault(flexible, today)).toBe(true);
+  });
   it('groups overdue, due today, later this week and beyond', () => {
     const today = '2026-10-14';
     expect(sectionFor(chore('2026-10-13'), today)).toBe('overdue');

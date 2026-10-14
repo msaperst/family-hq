@@ -166,6 +166,68 @@ describe('Family HQ dashboard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Hide upcoming chores' }));
     await waitFor(() => expect(screen.queryByText('Dishes')).toBeNull());
   });
+  it('refreshes automatically on the 30-second polling interval', async () => {
+    vi.useFakeTimers();
+    try {
+      render(<App />);
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it('does not refresh on a visibility event while the page is hidden', async () => {
+    const original = Object.getOwnPropertyDescriptor(document, 'hidden');
+    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+    try {
+      render(<App />);
+      await screen.findByText('Make bed');
+      const before = fetchMock.mock.calls.length;
+      fireEvent(document, new Event('visibilitychange'));
+      expect(fetchMock).toHaveBeenCalledTimes(before);
+    } finally {
+      if (original) Object.defineProperty(document, 'hidden', original);
+      else Reflect.deleteProperty(document, 'hidden');
+    }
+  });
+  it('ignores a rejected request after its signal is aborted', async () => {
+    let rejectRequest!: (error: unknown) => void;
+    fetchMock.mockImplementation(() => new Promise<Response>((_resolve, reject) => { rejectRequest = reject; }));
+    const { unmount } = render(<App />);
+    unmount();
+    rejectRequest(new Error('Cancelled'));
+    await Promise.resolve();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+  it('uses a fallback error message for non-Error request failures', async () => {
+    fetchMock.mockRejectedValue('offline');
+    render(<App />);
+    expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'Unable to load chores');
+  });
+  it('uses a fallback message for non-Error completion failures', async () => {
+    fetchMock.mockImplementation(async (_url, options) => {
+      if (options && 'method' in options && options.method === 'PUT') throw 'failed';
+      return response();
+    });
+    render(<App />);
+    await screen.findByText('Make bed');
+    fireEvent.click(screen.getByRole('checkbox', { name: /Make bed/ }));
+    expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'Could not save completion');
+  });
+  it('keeps already loaded chores visible during a subsequent refresh error', async () => {
+    let reads = 0;
+    fetchMock.mockImplementation(async () => {
+      reads++;
+      if (reads > 1) throw new Error('Refresh failed');
+      return response();
+    });
+    render(<App />);
+    await screen.findByText('Make bed');
+    fireEvent(document, new Event('visibilitychange'));
+    expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'Refresh failed');
+    expect(screen.getByText('Make bed')).toBeTruthy();
+  });
   it('aborts the outstanding request on unmount', () => {
     fetchMock.mockReturnValue(new Promise(() => {}));
     const { unmount } = render(<App />);
