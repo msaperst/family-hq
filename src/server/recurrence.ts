@@ -46,13 +46,13 @@ export function previewOccurrences(db: DatabaseSync, scheduleId: string, from: s
   const start = parseDate(from);
   const end = parseDate(to);
   if (end < start || end - start > 366) throw new Error('Date range must span 0–366 days');
-  const schedule = db.prepare('SELECT * FROM chore_schedules WHERE id = ?').get(scheduleId) as Schedule | undefined;
+  const schedule = db.prepare('SELECT * FROM chore_schedules WHERE id = ?').get(scheduleId) as unknown as Schedule | undefined;
   if (!schedule) throw new Error('Schedule not found');
   if (schedule.paused) return [];
   if (schedule.interval_count < 1) throw new Error('Invalid interval');
   const anchor = parseDate(schedule.anchor_date);
   const weekdays = weekdaysOf(schedule);
-  const children = (db.prepare('SELECT child_id FROM schedule_assignees WHERE schedule_id = ? ORDER BY rotation_order').all(scheduleId) as {child_id:string}[]).map(x => x.child_id);
+  const children = (db.prepare('SELECT child_id FROM schedule_assignees WHERE schedule_id = ? ORDER BY rotation_order').all(scheduleId) as unknown as {child_id:string}[]).map(x => x.child_id);
   if (children.length === 0 || (schedule.mode === 'individual' && schedule.rotation === 'none' && children.length !== 1)) throw new Error('Invalid schedule assignees');
   const overrides = new Map((db.prepare('SELECT original_date, action, new_date, child_id FROM occurrence_overrides WHERE schedule_id = ?').all(scheduleId) as unknown as Override[]).map(x => [x.original_date, x]));
   const results: GeneratedOccurrence[] = [];

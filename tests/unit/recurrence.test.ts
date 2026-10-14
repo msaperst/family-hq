@@ -129,4 +129,32 @@ describe('recurrence engine', () => {
       expect(generateOccurrences(db,'schedule','2026-10-12','2026-10-25')).toHaveLength(4);
     } finally { db.close(); }
   });
+  it('covers weekly and interval scheduling branches with and without weekday filters', () => {
+    const db = fixture({frequency:'interval_weeks',interval:2});
+    try {
+      expect(previewOccurrences(db,'schedule','2026-10-12','2026-11-02').map(x=>x.startsOn))
+        .toEqual(['2026-10-12','2026-10-26']);
+      db.prepare("UPDATE chore_schedules SET frequency='interval_days', interval_count=2, weekdays='[0]' WHERE id='schedule'").run();
+      expect(previewOccurrences(db,'schedule','2026-10-12','2026-10-26').map(x=>x.startsOn))
+        .toEqual(['2026-10-12','2026-10-26']);
+      db.prepare("UPDATE chore_schedules SET frequency='interval_weeks', interval_count=2, weekdays='[1]' WHERE id='schedule'").run();
+      expect(previewOccurrences(db,'schedule','2026-10-12','2026-11-02').map(x=>x.startsOn))
+        .toEqual(['2026-10-13','2026-10-27']);
+    } finally { db.close(); }
+  });
+  it('handles flexible weeks before an anchor and at the end date', () => {
+    const db = fixture({frequency:'weekly',anchor:'2026-10-21',end:'2026-10-27'});
+    try {
+      expect(previewOccurrences(db,'schedule','2026-10-12','2026-11-08').map(x=>x.startsOn))
+        .toEqual(['2026-10-19','2026-10-26']);
+    } finally { db.close(); }
+  });
+  it('rejects invalid intervals and handles ranges entirely before an anchor', () => {
+    const db = fixture({interval:0});
+    try {
+      expect(()=>previewOccurrences(db,'schedule','2026-10-12','2026-10-14')).toThrow('Invalid interval');
+      db.prepare("UPDATE chore_schedules SET interval_count=1, anchor_date='2026-10-20' WHERE id='schedule'").run();
+      expect(previewOccurrences(db,'schedule','2026-10-12','2026-10-14')).toEqual([]);
+    } finally { db.close(); }
+  });
 });
