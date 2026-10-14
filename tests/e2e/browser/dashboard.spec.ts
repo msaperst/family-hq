@@ -114,3 +114,27 @@ test('keeps chores completed today visible and checked after reload', async ({ p
   await expect(chore).toBeVisible();
   await expect(chore.getByRole('checkbox')).toBeChecked();
 });
+
+test('keeps overdue undo available across a dashboard refresh during the 30-second window', async ({ page }) => {
+  await page.clock.install();
+  await page.goto('/');
+  const laundry = page.getByRole('region', { name: 'Porter' }).locator('label.chore').filter({ hasText: 'Put laundry away' });
+  const checkbox = laundry.getByRole('checkbox');
+  await expect(checkbox).not.toBeChecked();
+
+  await checkbox.click();
+  await expect(checkbox).toBeChecked();
+
+  // Force the same API refresh that periodic polling performs while still inside the undo window.
+  await page.clock.fastForward(15_000);
+  const responses = page.waitForResponse(response => response.url().includes('/api/chores?more=false') && response.status() === 200);
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await responses;
+  await expect(checkbox).toBeChecked();
+
+  // Undo remains available while the grace period has not expired.
+  await checkbox.click();
+  await expect(checkbox).not.toBeChecked();
+  await page.reload();
+  await expect(laundry.getByRole('checkbox')).not.toBeChecked();
+});
