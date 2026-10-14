@@ -23,3 +23,18 @@ h1 { font-size: clamp(1.8rem, 4vw, 2.5rem); margin: 0; }
 .error { color: #b43e3e; }
 .empty { text-align: center; padding: 50px 0; }
 @media (max-width: 540px) { .dashboard { padding: 14px; } .dashboard-header { align-items: flex-start; } .connection { font-size: .75rem; } }
+
+.parent-settings { max-width: 900px; }
+.parent-settings a { color: #205f83; }
+.settings-panel { background: white; border-radius: 16px; padding: 22px; margin: 18px 0; }
+.settings-panel h2 { margin-top: 0; }
+.schedule-list { list-style: none; margin: 0; padding: 0; }
+.schedule-list li { display: flex; align-items: center; justify-content: space-between; gap: 14px; border-top: 1px solid #dbe1e9; padding: 14px 0; }
+.schedule-list p { margin: 6px 0 0; color: #657084; }
+.settings-form { display: grid; gap: 16px; }
+.settings-form > label { display: grid; gap: 6px; font-weight: 600; }
+.settings-form input:not([type=checkbox]):not([type=radio]), .settings-form select { padding: 10px; border: 1px solid #a9b3c2; border-radius: 8px; font: inherit; width: 100%; }
+.settings-form fieldset { border: 1px solid #dbe1e9; border-radius: 10px; }
+.settings-checkbox { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px 8px 0; }
+.settings-panel button { border: 1px solid #a9b3c2; background: #f5f6fa; padding: 10px 16px; border-radius: 9px; font: inherit; cursor: pointer; }
+.settings-panel button:disabled { opacity: .5; cursor: not-allowed; }
