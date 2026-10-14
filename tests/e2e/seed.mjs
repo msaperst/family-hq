@@ -41,7 +41,7 @@ try {
       .run(id, id, id, due, due, 'individual');
     db.prepare('INSERT INTO occurrence_assignees (occurrence_id, child_id) VALUES (?,?)').run(id, 'porter');
     db.prepare('INSERT INTO chore_completions (occurrence_id, child_id, completed, performed_by, updated_at) VALUES (?, ?, 1, ?, ?)')
-      .run(id, 'porter', 'porter', new Date().toISOString());
+      .run(id, '', 'porter', new Date().toISOString());
   }
   db.exec('COMMIT');
   process.stdout.write('Seeded disposable Playwright DB for ' + today + '\n');

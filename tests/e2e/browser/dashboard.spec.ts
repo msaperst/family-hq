@@ -16,7 +16,7 @@ test('shows overdue chores with their original due date', async ({ page }) => {
   await page.goto('/');
   const porter = page.getByRole('region', { name: 'Porter' });
   await expect(porter.getByText('Put laundry away')).toBeVisible();
-  await expect(porter.getByText('Yesterday · Overdue')).toBeVisible();
+  await expect(porter.locator('label.chore').filter({ hasText: 'Put laundry away' }).getByText('Yesterday · Overdue')).toBeVisible();
 });
 test('shows flexible weekly chores before the deadline', async ({ page }) => {
   await page.goto('/');
