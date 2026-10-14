@@ -66,6 +66,30 @@ export function registerParentApi(app: FastifyInstance, db: DatabaseSync): void 
     } catch (error) { db.exec('ROLLBACK'); throw error; }
     return reply.code(201).send({ id, choreId });
   });
+
+  app.put<{ Params: { id: string }; Body: ScheduleInput }>('/api/parent/schedules/:id', (request, reply) => {
+    if (!validInput(request.body)) return reply.code(400).send({ error: 'Invalid schedule' });
+    const input = request.body;
+    const existing = db.prepare('SELECT chore_id FROM chore_schedules WHERE id = ?').get(request.params.id) as { chore_id: string } | undefined;
+    if (!existing) return reply.code(404).send({ error: 'Schedule not found' });
+    const known = db.prepare('SELECT id FROM children WHERE active = 1').all() as { id: string }[];
+    if (input.assignees.some(id => !known.some(child => child.id === id))) return reply.code(400).send({ error: 'Unknown or inactive child' });
+    // Existing generated occurrences are immutable: preserve completions and audit history.
+    // Schedule edits affect only occurrences that have not yet been generated.
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      db.prepare('UPDATE chores SET name = ? WHERE id = ?').run(input.name.trim(), existing.chore_id);
+      db.prepare(`UPDATE chore_schedules SET mode = ?, frequency = ?, interval_count = ?, weekdays = ?,
+        anchor_date = ?, end_date = ?, rotation = ? WHERE id = ?`)
+        .run(input.mode, input.frequency, input.intervalCount, JSON.stringify(input.weekdays),
+          input.anchorDate, input.endDate, input.rotation, request.params.id);
+      db.prepare('DELETE FROM schedule_assignees WHERE schedule_id = ?').run(request.params.id);
+      const assign = db.prepare('INSERT INTO schedule_assignees (schedule_id, child_id, rotation_order) VALUES (?, ?, ?)');
+      input.assignees.forEach((child, index) => assign.run(request.params.id, child, index));
+      db.exec('COMMIT');
+    } catch (error) { db.exec('ROLLBACK'); throw error; }
+    return { id: request.params.id, updated: true };
+  });
   app.patch<{ Params: { id: string }; Body: { paused?: boolean } }>('/api/parent/schedules/:id', (request, reply) => {
     if (!request.body || typeof request.body.paused !== 'boolean' || Object.keys(request.body).length !== 1)
       return reply.code(400).send({ error: 'Invalid schedule update' });
