@@ -9,7 +9,8 @@ test('shows active child columns', async ({ page }) => {
 test('shows a single shared column', async ({ page }) => {
   await page.goto('/');
   const shared = page.getByRole('region', { name: 'Either child' });
-  await expect(shared.locator('label.chore').filter({ hasText: 'Feed pets' })).toHaveCount(1);
+  await expect(page.getByRole('region', { name: 'Either child' })).toHaveCount(1);
+  await expect(shared.locator('label.chore').filter({ hasText: 'Feed pets' }).filter({ hasText: 'Today' })).toHaveCount(1);
 });
 test('shows overdue chores with their original due date', async ({ page }) => {
   await page.goto('/');

@@ -109,6 +109,63 @@ describe('Family HQ dashboard', () => {
     expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'Network lost');
     await waitFor(() => expect(screen.getByRole('checkbox', { name: /Make bed/ })).toHaveProperty('disabled', false));
   });
+  it('disables a chore while its completion request is pending', async () => {
+    let finish!: (value: Response) => void;
+    fetchMock.mockImplementation(async (_url, options) => {
+      if (options && 'method' in options && options.method === 'PUT') {
+        return await new Promise<Response>(resolve => { finish = resolve; });
+      }
+      return response();
+    });
+    render(<App />);
+    const checkbox = await screen.findByRole('checkbox', { name: /Make bed/ });
+    fireEvent.click(checkbox);
+    await waitFor(() => expect(checkbox).toHaveProperty('disabled', true));
+    expect(fetchMock.mock.calls.filter(call => call[1] && 'method' in call[1] && call[1].method === 'PUT')).toHaveLength(1);
+    finish({ ok: true } as Response);
+    await waitFor(() => expect(checkbox).toHaveProperty('disabled', false));
+  });
+  it('clears an earlier connection error after a successful refresh', async () => {
+    let calls = 0;
+    fetchMock.mockImplementation(async () => {
+      calls++;
+      if (calls === 1) throw new Error('Temporary outage');
+      return response();
+    });
+    render(<App />);
+    expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'Temporary outage');
+    fireEvent(document, new Event('visibilitychange'));
+    expect(await screen.findByText('Make bed')).toBeTruthy();
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+  });
+  it('refreshes when the page becomes visible', async () => {
+    render(<App />);
+    await screen.findByText('Make bed');
+    const before = fetchMock.mock.calls.length;
+    fireEvent(document, new Event('visibilitychange'));
+    await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThan(before));
+  });
+  it('shows upcoming hints when a column has only later chores', async () => {
+    fetchMock.mockResolvedValue(response({ ...fixture, columns: [{
+      id: 'porter', name: 'Porter', chores: [{
+        id: 'future', name: 'Faraway task', startsOn: '2026-10-19', dueOn: '2026-10-19',
+        mode: 'individual', childId: 'porter', completed: false,
+      }],
+    }] }));
+    render(<App />);
+    expect(await screen.findByText(/Chores coming up/)).toBeTruthy();
+    expect(screen.queryByText('Faraway task')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Show more upcoming chores' }));
+    expect(await screen.findByText('Faraway task')).toBeTruthy();
+  });
+  it('collapses upcoming chores after expanding', async () => {
+    render(<App />);
+    await screen.findByText('Make bed');
+    fireEvent.click(screen.getByRole('button', { name: 'Show more upcoming chores' }));
+    expect(await screen.findByText('Dishes')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Hide upcoming chores' }));
+    await waitFor(() => expect(screen.queryByText('Dishes')).toBeNull());
+  });
   it('aborts the outstanding request on unmount', () => {
     fetchMock.mockReturnValue(new Promise(() => {}));
     const { unmount } = render(<App />);
