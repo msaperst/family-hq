@@ -87,7 +87,7 @@ export function ParentSettings() {
   }
   async function saveException(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!editingId) return;
+    if (!editingId || busy) return;
     setBusy(true); setError('');
     try {
       const response = await fetch('/api/parent/schedules/' + encodeURIComponent(editingId) +
@@ -114,6 +114,7 @@ export function ParentSettings() {
     finally { setBusy(false); }
   }
   async function pause(schedule: Schedule) {
+    if (busy) return;
     setBusy(true); setError('');
     try {
       const response = await fetch('/api/parent/schedules/' + encodeURIComponent(schedule.id), {
