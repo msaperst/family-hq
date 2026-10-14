@@ -81,6 +81,10 @@ const migrations = [
   CREATE INDEX idx_overrides_schedule ON occurrence_overrides(schedule_id, original_date);`
 ];
 
+export function assertDatabaseIntegrity(result: { integrity_check: string }): void {
+  if (result.integrity_check !== 'ok') throw new Error('SQLite integrity check failed');
+}
+
 export function openDatabase(filename: string): DatabaseSync {
   if (!filename.trim()) throw new Error('Database filename must not be empty');
   const path = filename === ':memory:' ? filename : resolve(filename);
@@ -104,7 +108,7 @@ export function openDatabase(filename: string): DatabaseSync {
       }
     }
     const result = db.prepare('PRAGMA integrity_check').get() as { integrity_check: string };
-    if (result.integrity_check !== 'ok') throw new Error('SQLite integrity check failed');
+    assertDatabaseIntegrity(result);
     return db;
   } catch (error) {
     db.close();

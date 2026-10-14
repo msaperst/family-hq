@@ -27,7 +27,8 @@ function weekday(day: number): number { return (new Date(day * DAY_MS).getUTCDay
 function weekdaysOf(schedule: Schedule): number[] {
   const raw: unknown = JSON.parse(schedule.weekdays);
   if (!Array.isArray(raw) || raw.some(x => !Number.isInteger(x) || x < 0 || x > 6)) throw new Error('Weekdays must be 0 (Monday) through 6 (Sunday)');
-  return [...new Set(raw as number[])];
+  const unique = new Set(raw as number[]);
+  return Array.from(unique);
 }
 function due(schedule: Schedule, day: number, anchor: number, weekdays: number[]): boolean {
   if (day < anchor || (schedule.end_date !== null && day > parseDate(schedule.end_date))) return false;

@@ -113,4 +113,12 @@ describe('recurrence engine', () => {
     } finally {db.close();}
   });
 
+  it('accepts valid weekday boundaries and deduplicates weekdays in normalized output', () => {
+    const db = fixture({ weekdays: [0, 0, 6, 6] });
+    try {
+      const occurrences = previewOccurrences(db, 'schedule', '2026-10-12', '2026-10-18');
+      expect(occurrences.map(x => x.startsOn)).toEqual(['2026-10-12', '2026-10-18']);
+      expect(occurrences.map(x => x.key)).toEqual(['schedule:2026-10-12', 'schedule:2026-10-18']);
+    } finally { db.close(); }
+  });
 });
