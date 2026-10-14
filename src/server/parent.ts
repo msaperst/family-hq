@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import type { FastifyInstance } from 'fastify';
 import { localToday } from './dashboard.js';
+import { previewOccurrences } from './recurrence.js';
 
 type Mode = 'individual' | 'either' | 'each';
 type Frequency = 'once' | 'daily' | 'weekly' | 'interval_days' | 'interval_weeks';
@@ -93,6 +94,75 @@ export function registerParentApi(app: FastifyInstance, db: DatabaseSync): void 
       db.exec('COMMIT');
     } catch (error) { db.exec('ROLLBACK'); throw error; }
     return { id: request.params.id, updated: true };
+  });
+
+  app.get<{ Params: { id: string }; Querystring: { from?: string; to?: string } }>('/api/parent/schedules/:id/preview', (request, reply) => {
+    if (!db.prepare('SELECT id FROM chore_schedules WHERE id = ?').get(request.params.id))
+      return reply.code(404).send({ error: 'Schedule not found' });
+    const from = request.query.from ?? localToday();
+    const to = request.query.to ?? new Date(Date.parse(from + 'T00:00:00Z') + 28 * 86400000).toISOString().slice(0, 10);
+    if (!validDate(from) || !validDate(to) || to < from ||
+        (Date.parse(to) - Date.parse(from)) / 86400000 > 366)
+      return reply.code(400).send({ error: 'Invalid preview date range' });
+    return { occurrences: previewOccurrences(db, request.params.id, from, to) };
+  });
+  app.get<{ Params: { id: string } }>('/api/parent/schedules/:id/exceptions', (request, reply) => {
+    if (!db.prepare('SELECT id FROM chore_schedules WHERE id = ?').get(request.params.id))
+      return reply.code(404).send({ error: 'Schedule not found' });
+    return { exceptions: db.prepare(`SELECT original_date AS originalDate, action,
+      new_date AS newDate, child_id AS childId FROM occurrence_overrides
+      WHERE schedule_id = ? ORDER BY original_date`).all(request.params.id) };
+  });
+  app.put<{ Params: { id: string; date: string }; Body: { action: 'skip' | 'move' | 'reassign'; newDate?: string; childId?: string } }>(
+    '/api/parent/schedules/:id/exceptions/:date', (request, reply) => {
+      const { id, date } = request.params;
+      const input = request.body;
+      if (!validDate(date) || !input || !['skip', 'move', 'reassign'].includes(input.action) ||
+          (input.action === 'move' && (!validDate(input.newDate) || input.newDate < localToday())) ||
+          (input.action === 'reassign' && (typeof input.childId !== 'string' ||
+            !db.prepare('SELECT id FROM children WHERE id = ? AND active = 1').get(input.childId))) ||
+          (input.action === 'skip' && (input.newDate !== undefined || input.childId !== undefined)) ||
+          (input.action === 'move' && input.childId !== undefined) ||
+          (input.action === 'reassign' && input.newDate !== undefined))
+        return reply.code(400).send({ error: 'Invalid exception' });
+      if (date < localToday()) return reply.code(400).send({ error: 'Past occurrences cannot be changed' });
+      if (!db.prepare('SELECT id FROM chore_schedules WHERE id = ?').get(id))
+        return reply.code(404).send({ error: 'Schedule not found' });
+      const occurrence = db.prepare('SELECT id FROM chore_occurrences WHERE schedule_id = ? AND occurrence_key = ?')
+        .get(id, id + ':' + date) as { id: string } | undefined;
+      if (occurrence && (db.prepare('SELECT 1 FROM chore_completions WHERE occurrence_id = ?').get(occurrence.id) ||
+          db.prepare('SELECT 1 FROM completion_events WHERE occurrence_id = ?').get(occurrence.id)))
+        return reply.code(409).send({ error: 'Cannot change an occurrence with completion history' });
+      db.exec('BEGIN IMMEDIATE');
+      try {
+        if (occurrence) db.prepare('DELETE FROM chore_occurrences WHERE id = ?').run(occurrence.id);
+        db.prepare(`INSERT INTO occurrence_overrides (id, schedule_id, original_date, action, new_date, child_id)
+          VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(schedule_id, original_date) DO UPDATE SET
+          action = excluded.action, new_date = excluded.new_date, child_id = excluded.child_id`)
+          .run(randomUUID(), id, date, input.action, input.action === 'move' ? input.newDate! : null,
+            input.action === 'reassign' ? input.childId! : null);
+        db.exec('COMMIT');
+      } catch (error) { db.exec('ROLLBACK'); throw error; }
+      return { originalDate: date, action: input.action };
+    },
+  );
+  app.delete<{ Params: { id: string; date: string } }>('/api/parent/schedules/:id/exceptions/:date', (request, reply) => {
+    const { id, date } = request.params;
+    if (!validDate(date) || date < localToday()) return reply.code(400).send({ error: 'Invalid exception date' });
+    if (!db.prepare('SELECT id FROM chore_schedules WHERE id = ?').get(id))
+      return reply.code(404).send({ error: 'Schedule not found' });
+    const occurrence = db.prepare('SELECT id FROM chore_occurrences WHERE schedule_id = ? AND occurrence_key = ?')
+      .get(id, id + ':' + date) as { id: string } | undefined;
+    if (occurrence && (db.prepare('SELECT 1 FROM chore_completions WHERE occurrence_id = ?').get(occurrence.id) ||
+        db.prepare('SELECT 1 FROM completion_events WHERE occurrence_id = ?').get(occurrence.id)))
+      return reply.code(409).send({ error: 'Cannot change an occurrence with completion history' });
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      if (occurrence) db.prepare('DELETE FROM chore_occurrences WHERE id = ?').run(occurrence.id);
+      const result = db.prepare('DELETE FROM occurrence_overrides WHERE schedule_id = ? AND original_date = ?').run(id, date);
+      db.exec('COMMIT');
+      return { removed: result.changes > 0 };
+    } catch (error) { db.exec('ROLLBACK'); throw error; }
   });
   app.patch<{ Params: { id: string }; Body: { paused?: boolean } }>('/api/parent/schedules/:id', (request, reply) => {
     if (!request.body || typeof request.body.paused !== 'boolean' || Object.keys(request.body).length !== 1)
