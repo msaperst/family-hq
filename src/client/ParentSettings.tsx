@@ -6,6 +6,8 @@ interface Schedule {
   endDate: string | null; rotation: string; paused: boolean; assignees: string[];
 }
 interface Child { id: string; name: string }
+interface Occurrence { key: string; startsOn: string; dueOn: string; assignees: string[]; skipped: boolean }
+interface Exception { originalDate: string; action: string; newDate: string | null; childId: string | null }
 const weekdayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 function localDate(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Phoenix', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
@@ -16,6 +18,12 @@ export function ParentSettings() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [occurrences, setOccurrences] = useState<Occurrence[]>([]);
+  const [exceptions, setExceptions] = useState<Exception[]>([]);
+  const [exceptionDate, setExceptionDate] = useState('');
+  const [exceptionAction, setExceptionAction] = useState<'skip' | 'move' | 'reassign'>('skip');
+  const [exceptionNewDate, setExceptionNewDate] = useState('');
+  const [exceptionChild, setExceptionChild] = useState('');
   const [rotation, setRotation] = useState<'none' | 'daily' | 'weekly'>('none');
   const [name, setName] = useState('');
   const [mode, setMode] = useState<'individual' | 'either' | 'each'>('individual');
@@ -35,8 +43,19 @@ export function ParentSettings() {
     setChildren(childrenData.children);
   }
   useEffect(() => { void load().catch(cause => setError(cause instanceof Error ? cause.message : 'Unable to load settings')); }, []);
+  async function loadOccurrences(id: string) {
+    const [preview, overrides] = await Promise.all([
+      fetch('/api/parent/schedules/' + encodeURIComponent(id) + '/preview'),
+      fetch('/api/parent/schedules/' + encodeURIComponent(id) + '/exceptions'),
+    ]);
+    if (!preview.ok || !overrides.ok) throw new Error('Could not load schedule preview');
+    setOccurrences((await preview.json() as { occurrences: Occurrence[] }).occurrences);
+    setExceptions((await overrides.json() as { exceptions: Exception[] }).exceptions);
+  }
   function edit(schedule: Schedule) {
     setEditingId(schedule.id); setName(schedule.name);
+    setExceptionDate(''); setExceptionAction('skip'); setExceptionNewDate(''); setExceptionChild('');
+    void loadOccurrences(schedule.id).catch(cause => setError(cause instanceof Error ? cause.message : 'Could not load preview'));
     setMode(schedule.mode as typeof mode); setFrequency(schedule.frequency as typeof frequency);
     setIntervalCount(schedule.intervalCount); setWeekdays(schedule.weekdays);
     setWeeklyFlexible(schedule.frequency === 'weekly' && schedule.weekdays.length === 0);
@@ -48,6 +67,7 @@ export function ParentSettings() {
     setEditingId(null); setName(''); setMode('individual'); setFrequency('daily');
     setIntervalCount(1); setWeekdays([]); setWeeklyFlexible(true); setAnchorDate(localDate());
     setEndDate(''); setRotation('none'); setAssignees([]);
+    setOccurrences([]); setExceptions([]); setExceptionDate('');
   }
   async function create(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -63,6 +83,34 @@ export function ParentSettings() {
       resetForm();
       await load();
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not create chore'); }
+    finally { setBusy(false); }
+  }
+  async function saveException(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingId || busy) return;
+    setBusy(true); setError('');
+    try {
+      const response = await fetch('/api/parent/schedules/' + encodeURIComponent(editingId) +
+        '/exceptions/' + encodeURIComponent(exceptionDate), {
+        method: 'PUT', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: exceptionAction,
+          ...(exceptionAction === 'move' ? { newDate: exceptionNewDate } : {}),
+          ...(exceptionAction === 'reassign' ? { childId: exceptionChild } : {}) }),
+      });
+      if (!response.ok) throw new Error((await response.json() as { error?: string }).error ?? 'Could not save exception');
+      await loadOccurrences(editingId);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save exception'); }
+    finally { setBusy(false); }
+  }
+  async function removeException(date: string) {
+    if (!editingId || busy) return;
+    setBusy(true); setError('');
+    try {
+      const response = await fetch('/api/parent/schedules/' + encodeURIComponent(editingId) +
+        '/exceptions/' + encodeURIComponent(date), { method: 'DELETE' });
+      if (!response.ok) throw new Error('Could not remove exception');
+      await loadOccurrences(editingId);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not remove exception'); }
     finally { setBusy(false); }
   }
   async function pause(schedule: Schedule) {
@@ -146,5 +194,36 @@ export function ParentSettings() {
         {editingId && <button type="button" disabled={busy} onClick={resetForm}>Cancel editing</button>}</div>
       </form>
     </section>
+    {editingId && <section className="settings-panel">
+      <h2>Upcoming occurrences</h2>
+      <p>Preview of the saved schedule. Save edits above to update this preview.</p>
+      {occurrences.length === 0 && <p>No upcoming occurrences in the next four weeks.</p>}
+      <ul className="schedule-list">{occurrences.slice(0, 15).map(occurrence => <li key={occurrence.key}>
+        <span>{occurrence.startsOn === occurrence.dueOn ? occurrence.dueOn : occurrence.startsOn + ' – ' + occurrence.dueOn}
+          {' · '}{occurrence.skipped ? 'Skipped' : occurrence.assignees.map(id => children.find(child => child.id === id)?.name ?? id).join(', ')}</span>
+        <button type="button" onClick={() => setExceptionDate(occurrence.key.split(':').at(-1) ?? '')}>Exception</button>
+      </li>)}</ul>
+      <h3>One-day exception</h3>
+      <form className="settings-form" onSubmit={event => void saveException(event)}>
+        <label>Original scheduled date<input type="date" required min={localDate()} value={exceptionDate}
+          onChange={event => setExceptionDate(event.target.value)} /></label>
+        <label>Action<select value={exceptionAction} onChange={event => setExceptionAction(event.target.value as typeof exceptionAction)}>
+          <option value="skip">Skip this occurrence</option><option value="move">Move to another date</option>
+          <option value="reassign">Assign to another child</option>
+        </select></label>
+        {exceptionAction === 'move' && <label>New date<input type="date" required min={localDate()} value={exceptionNewDate}
+          onChange={event => setExceptionNewDate(event.target.value)} /></label>}
+        {exceptionAction === 'reassign' && <label>Assign to<select required value={exceptionChild}
+          onChange={event => setExceptionChild(event.target.value)}>
+          <option value="">Choose a child</option>{children.map(child => <option key={child.id} value={child.id}>{child.name}</option>)}
+        </select></label>}
+        <button type="submit" disabled={busy || !exceptionDate}>Save exception</button>
+      </form>
+      {exceptions.length > 0 && <><h3>Existing exceptions</h3><ul className="schedule-list">{exceptions.map(item =>
+        <li key={item.originalDate}><span>{item.originalDate}: {item.action}
+          {item.newDate ? ' → ' + item.newDate : ''}{item.childId ? ' → ' + (children.find(child => child.id === item.childId)?.name ?? item.childId) : ''}</span>
+          <button type="button" disabled={busy || item.originalDate < localDate()}
+            onClick={() => void removeException(item.originalDate)}>Remove</button></li>)}</ul></>}
+    </section>}
   </main>;
 }
