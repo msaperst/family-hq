@@ -201,7 +201,7 @@ export function ParentSettings() {
       <ul className="schedule-list">{occurrences.slice(0, 15).map(occurrence => <li key={occurrence.key}>
         <span>{occurrence.startsOn === occurrence.dueOn ? occurrence.dueOn : occurrence.startsOn + ' – ' + occurrence.dueOn}
           {' · '}{occurrence.skipped ? 'Skipped' : occurrence.assignees.map(id => children.find(child => child.id === id)?.name ?? id).join(', ')}</span>
-        <button type="button" onClick={() => setExceptionDate(occurrence.key.split(':').at(-1) ?? '')}>Exception</button>
+        <button type="button" disabled={(occurrence.key.split(":").at(-1) ?? "") < localDate()} onClick={() => setExceptionDate(occurrence.key.split(':').at(-1) ?? '')}>Exception</button>
       </li>)}</ul>
       <h3>One-day exception</h3>
       <form className="settings-form" onSubmit={event => void saveException(event)}>

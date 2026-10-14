@@ -7,7 +7,7 @@ test('creates a recurring chore and displays it on the dashboard', async ({ page
   await page.getByLabel('Chore name').fill('Playwright new chore');
   await page.getByLabel('Porter').check();
   await page.getByRole('button', { name: 'Add chore' }).click();
-  await expect(page.getByText('Playwright new chore')).toBeVisible();
+  await expect(page.getByText('Playwright new chore').first()).toBeVisible();
   await page.goto('/');
   await expect(page.getByRole('region', { name: 'Porter' }).getByText('Playwright new chore')).toBeVisible();
 });
@@ -37,7 +37,7 @@ test('skips and restores one occurrence without changing the weekly rule', async
     .getByRole('button', { name: 'Edit' }).click();
   const preview = page.getByRole('heading', { name: 'Upcoming occurrences' }).locator('..');
   await expect(preview.getByRole('button', { name: 'Exception' }).first()).toBeVisible();
-  await preview.getByRole('button', { name: 'Exception' }).first().click();
+  await preview.getByRole('button', { name: 'Exception' }).last().click();
   await page.getByRole('button', { name: 'Save exception' }).click();
   await expect(page.getByText(/: skip/)).toBeVisible();
   await page.getByRole('button', { name: 'Remove' }).click();
