@@ -5,10 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently -k \"npm:dev:server\" \"npm:dev:client\"",
-    "dev:server": "tsx watch src/server/index.ts",
+    "dev:server": "node --env-file-if-exists=.env --import tsx --watch src/server/index.ts",
     "dev:client": "vite --host 127.0.0.1",
     "build": "tsc -p tsconfig.server.json && vite build",
-    "start": "node dist/server/server/index.js",
+    "start": "node --env-file-if-exists=.env dist/server/server/index.js",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.server.json",
     "test": "vitest run"
   },

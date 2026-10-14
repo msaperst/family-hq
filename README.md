@@ -1,51 +1,15 @@
 # Family HQ
 
-Self-hosted household dashboard. This initial skeleton provides a React page and a Fastify health endpoint. Chores, calendar integration, SQLite persistence and NAS deployment are separate issues.
+A self-hosted family dashboard for chores and, eventually, the shared Google Calendar. Designed for a touch-friendly iPad mini interface, with support for phones and a possible dedicated household display.
 
-## Requirements
-
-Node.js 22 and npm. Docker Compose is optional for a container smoke test.
-
-## Local development
-
-From `family-hq/`:
-
-```sh
-npm install
-npm run dev
-```
-
-Open http://127.0.0.1:5173. Vite proxies `/api` to Fastify at http://127.0.0.1:3000. Check the API directly with `curl http://127.0.0.1:3000/api/health`.
-
-## Build and test
-
-```sh
-npm run typecheck
-npm test
-npm run build
-NODE_ENV=production npm start
-```
-
-Production mode serves the built UI and API on http://127.0.0.1:3000. Stop either server with Ctrl+C.
-
-## Docker smoke test
-
-```sh
-docker compose up --build -d
-curl http://127.0.0.1:3000/api/health
-docker compose down
-```
-
-Compose binds to localhost only. It is **not** a QNAP deployment configuration. NAS routing, TLS, SQLite persistence and backups are planned in later tickets. No secrets are required yet.
-
-**Dependency lockfile:** not yet generated. Before merging this scaffold, run `npm install` with registry access and commit the resulting `package-lock.json`; switch Docker builds to `npm ci` for reproducibility. The PR should not be considered fully validated until typecheck, tests, build and Docker smoke test run.
+Family HQ is being built in this repository as a standalone application. It will run on the QNAP NAS without disrupting the existing network monitoring or backup systems.
 
 ## Documentation
 
-- [Architecture](docs/ARCHITECTURE.md)
-- [Requirements](docs/REQUIREMENTS.md)
-- [Development](docs/DEVELOPMENT.md)
+- [Requirements](docs/REQUIREMENTS.md) — household workflows, MVP and future scope.
+- [Architecture](docs/ARCHITECTURE.md) — technical design, data ownership, security and hosting.
+- [Development](docs/DEVELOPMENT.md) — setup, commands, testing, CI and contributor workflow.
 
-## Tracking
+## Project tracking
 
-[#3 App skeleton](https://github.com/msaperst/home-lab/issues/3) · [#4 CI/security](https://github.com/msaperst/home-lab/issues/4)
+[Family HQ issues](https://github.com/msaperst/home-lab/issues?q=is%3Aissue+Family+HQ) track implementation work. The [architecture decision](https://github.com/msaperst/home-lab/issues/2) records the approved design.

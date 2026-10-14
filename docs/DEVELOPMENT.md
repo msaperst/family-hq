@@ -1,84 +1,78 @@
-# Family HQ development conventions
+# Family HQ development
 
-**Status:** app skeleton proposed in [#3](https://github.com/msaperst/home-lab/issues/3); full CI gates follow in [#4](https://github.com/msaperst/home-lab/issues/4).
+## Workflow
 
-## Branch and pull request policy
+Work in scoped feature branches and submit pull requests into `main`. Keep production code, tests and documentation together. Do not change the existing NAS backup/network infrastructure as part of an unrelated app change.
 
-- `main` is the integration branch; do not push implementation directly to it.
-- Use a scoped feature branch for each issue and open a PR targeting `main`.
-- Keep changes focused; separate refactors and unrelated infrastructure changes.
-- Link the tracking issue in the PR and describe the change, tests, risks and operational impact.
-- Merge only after applicable checks pass and the change is reviewed.
-- Update documentation and tests with the code they describe.
+## Prerequisites
 
-This mirrors Saperstone Studios without introducing a `develop` branch.
+- Node.js 22 and npm
+- Docker with Compose for container testing (optional locally)
+- A free local TCP port (default `3080`; Grafana uses `3000` on the NAS)
 
-## Repository layout
+## Environment configuration
 
-```text
-family-hq/
-  README.md
-  docs/
-    ARCHITECTURE.md
-    REQUIREMENTS.md
-    DEVELOPMENT.md
-  src/
-    client/
-    server/
-    shared/
-  tests/
-    unit/
-  Dockerfile
-  compose.yaml
-  package.json
-.github/
-  workflows/  # Family HQ CI follows in #4
-```
+Copy `.env.example` to `.env` and adjust as needed:
+
+| Variable | Default | Use |
+| --- | --- | --- |
+| `FAMILY_HQ_PORT` | `3080` | API listen port, Vite proxy destination, Compose port mapping and container health check |
+| `HOST` | `127.0.0.1` | Local API bind address; Compose overrides to `0.0.0.0` inside container |
+| `VITE_PORT` | `5173` | Local frontend development port |
+
+Vite reads `.env` through `loadEnv`. Node does **not** automatically load `.env`; the development scripts load it using Node's `--env-file-if-exists` option. Compose reads the file for variable substitution. Never commit `.env` or credentials.
 
 ## Local development
 
-Prerequisites: Node.js 22, npm. From `family-hq/`:
+From `family-hq/`:
 
 ```sh
+cp .env.example .env
 npm install
 npm run dev
+```
+
+Open the frontend at `http://127.0.0.1:5173` (or the configured `VITE_PORT`). The page fetches `/api/health` via Vite's proxy to the configured `FAMILY_HQ_PORT`. To verify the API independently:
+
+```sh
+curl "http://127.0.0.1:${FAMILY_HQ_PORT:-3080}/api/health"
+```
+
+Stop with Ctrl+C. Development starts both processes using `concurrently`.
+
+## Verification
+
+```sh
 npm run typecheck
 npm test
 npm run build
+npm audit --audit-level=high
+```
+
+To verify the compiled application:
+
+```sh
 NODE_ENV=production npm start
 ```
 
-Development UI: http://127.0.0.1:5173; API: http://127.0.0.1:3000/api/health. See [README](../README.md) for Docker smoke test and shutdown. No database migration or secret setup is required for the skeleton.
+Open `http://127.0.0.1:3080` (or your configured port). The API and compiled UI are served by the same Fastify process.
 
-The initial PR needs an npm lockfile and verification in an environment with npm registry access before merge. Once a lockfile is committed, use `npm ci` in CI and Docker builds.
+## Docker smoke test
 
-## Quality gates (to implement in #4)
+```sh
+docker compose up --build -d
+curl "http://127.0.0.1:${FAMILY_HQ_PORT:-3080}/api/health"
+docker compose down
+```
 
-- Formatting, lint and strict TypeScript checks.
-- Vitest unit tests for scheduling, rotation and completion.
-- API/integration tests against isolated temporary SQLite; validate migrations and persistence.
-- Playwright browser tests for touch controls.
-- Dependency audit, CodeQL and container scanning where supported.
-- Test reports, coverage and required-check alignment.
+Compose binds the port to host loopback only. This is **not** the QNAP production deployment configuration.
 
-Prefer deterministic fixtures and mocks. Never use real Google credentials or mutate the live Google Sheet in CI.
+## CI
 
-## CI and deployment separation
+The scoped `.github/workflows/family-hq.yml` runs on Family HQ changes. It performs TypeScript validation, Vitest tests, production build, npm dependency audit and Docker build/health smoke testing. It does not deploy or publish images. Additional lint, Playwright, security analysis and release automation are tracked in #4 and subsequent tickets.
 
-PRs validate code and buildability; a successful PR does not deploy to QNAP. Publishing a versioned image and deploying it are separate operations. Prefer pinned versions, limited credentials and rollback.
+**Lockfile follow-up:** The authoring environment could not access npm registry, so `package-lock.json` has not been generated. Before merging PR #20, run `npm install`, commit `package-lock.json`, replace `npm install` with `npm ci` in Docker and CI, and confirm checks pass. This is required for reproducible dependency resolution.
 
-## Definition of done
+## Engineering expectations
 
-- Requested behavior is implemented without unrelated changes.
-- Appropriate automated tests pass locally and in CI.
-- Security, data migration and backup implications are considered.
-- Documentation reflects verified behavior.
-- PR references the issue and records validation steps.
-
-## Documentation lifecycle
-
-- This file owns development workflow.
-- [Architecture](ARCHITECTURE.md) owns design/security decisions.
-- [Requirements](REQUIREMENTS.md) owns user-visible behavior.
-- GitHub issues own individual work status.
-- Add `OPERATIONS.md` during #13–#15.
+Use deterministic tests and isolated fixtures. Never use real Google credentials in CI or modify the live chores spreadsheet. Tests belong in test jobs, not application startup. Add verified operational documentation when deployment and backup tickets are implemented.
