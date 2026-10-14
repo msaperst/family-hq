@@ -23,7 +23,7 @@ function validInput(value: unknown): value is ScheduleInput {
   return typeof v.name === 'string' && v.name.trim().length > 0 && v.name.length <= 120 &&
     ['individual', 'either', 'each'].includes(v.mode ?? '') &&
     ['once', 'daily', 'weekly', 'interval_days', 'interval_weeks'].includes(v.frequency ?? '') &&
-    Number.isInteger(v.intervalCount) && (v.intervalCount ?? 0) >= 1 && (v.intervalCount ?? 0) <= 365 &&
+    Number.isInteger(v.intervalCount) && v.intervalCount >= 1 && v.intervalCount <= 365 &&
     Array.isArray(v.weekdays) && v.weekdays.every(day => Number.isInteger(day) && day >= 0 && day <= 6) &&
     new Set(v.weekdays).size === v.weekdays.length &&
     validDate(v.anchorDate) && (v.endDate === null || validDate(v.endDate)) &&
