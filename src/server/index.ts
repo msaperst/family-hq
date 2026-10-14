@@ -4,7 +4,7 @@ import { openDatabase } from './db.js';
 
 const { port, host, serveClient } = getServerConfig(process.env);
 const db = openDatabase(process.env.FAMILY_HQ_DB_PATH ?? './data/family-hq.sqlite');
-const app = buildApp({ serveClient });
+const app = buildApp({ serveClient, db });
 app.addHook('onClose', () => { db.close(); });
 try {
   await app.listen({ port, host });
