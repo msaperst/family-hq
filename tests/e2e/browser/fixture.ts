@@ -38,21 +38,28 @@ export const test = base.extend({
     const env = { ...process.env, FAMILY_HQ_DB_PATH: dbPath, FAMILY_HQ_PORT: String(apiPort), VITE_PORT: String(vitePort), HOST: '127.0.0.1' };
     const init = "import {openDatabase} from './src/server/db.ts'; const db=openDatabase(process.env.FAMILY_HQ_DB_PATH); db.close();";
     let server: ReturnType<typeof spawn> | undefined;
+    let vite: ReturnType<typeof spawn> | undefined;
     let serverOutput = '';
     try {
       execFileSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', init], { env });
       execFileSync(process.execPath, ['tests/e2e/seed.mjs'], { env });
-      server = spawn('npm', ['run', 'dev'], { env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+      server = spawn(process.execPath, ['--import', 'tsx', 'src/server/index.ts'], { env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
       server.stdout?.on('data', (chunk: Buffer) => { serverOutput += chunk.toString(); });
       server.stderr?.on('data', (chunk: Buffer) => { serverOutput += chunk.toString(); });
+      vite = spawn('npm', ['run', 'dev:client'], { env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+      vite.stdout?.on('data', (chunk: Buffer) => { serverOutput += chunk.toString(); });
+      vite.stderr?.on('data', (chunk: Buffer) => { serverOutput += chunk.toString(); });
       try {
-        await ready('http://127.0.0.1:' + vitePort + '/', () => server!.exitCode !== null);
+        await ready('http://127.0.0.1:' + vitePort + '/', () => server!.exitCode !== null || vite.exitCode !== null);
         await ready('http://127.0.0.1:' + vitePort + '/api/health', () => server!.exitCode !== null);
       } catch (error) {
         throw new Error(`${String(error)}\nServer output:\n${serverOutput.slice(-6000)}`);
       }
       await use('http://127.0.0.1:' + vitePort);
     } finally {
+      if (vite?.pid) {
+        try { process.kill(-vite.pid, 'SIGTERM'); } catch { /* already exited */ }
+      }
       if (server?.pid) {
         try { process.kill(-server.pid, 'SIGTERM'); } catch { /* already exited */ }
       }
