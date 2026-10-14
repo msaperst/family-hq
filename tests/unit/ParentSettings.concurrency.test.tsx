@@ -78,6 +78,49 @@ describe('concurrent parent operations', () => {
     await waitFor(() => expect(button).toHaveProperty('disabled', false));
     expect(mock.mock.calls.filter(([, options]) => options?.method === 'PUT')).toHaveLength(1);
   });
+
+  it('prevents a second pause action while the first PATCH is pending', async () => {
+    const pending = deferred();
+    mock.mockImplementation(async (url, options) => {
+      if (options?.method === 'PATCH') return pending.promise;
+      if (String(url).endsWith('/children')) return response({ children });
+      return response({ schedules: [schedule] });
+    });
+    render(<ParentSettings />);
+    await screen.findByText('Clean bedroom');
+    const pause = screen.getByRole('button', { name: 'Pause' });
+    fireEvent.click(pause);
+    await waitFor(() => expect(pause).toHaveProperty('disabled', true));
+    fireEvent.click(pause);
+    expect(mock.mock.calls.filter(([, options]) => options?.method === 'PATCH')).toHaveLength(1);
+    pending.resolve(response({}));
+    await waitFor(() => expect(pause).toHaveProperty('disabled', false));
+    expect(mock.mock.calls.filter(([, options]) => options?.method === 'PATCH')).toHaveLength(1);
+  });
+  it('prevents duplicate exception removal while the DELETE is pending', async () => {
+    mock.mockImplementation(async (url, options) => {
+      if (options?.method) return response({});
+      const path = String(url);
+      if (path.endsWith('/children')) return response({ children });
+      if (path.endsWith('/preview')) return response({ occurrences: [] });
+      if (path.endsWith('/exceptions')) return response({ exceptions: [
+        { originalDate: '2099-01-05', action: 'skip', newDate: null, childId: null },
+      ] });
+      return response({ schedules: [schedule] });
+    });
+    await edit();
+    const pending = deferred();
+    const previous = mock.getMockImplementation()!;
+    mock.mockImplementation((url, options) => options?.method === 'DELETE' ? pending.promise : previous(url, options));
+    const remove = screen.getByRole('button', { name: 'Remove' });
+    fireEvent.click(remove);
+    await waitFor(() => expect(remove).toHaveProperty('disabled', true));
+    fireEvent.click(remove);
+    expect(mock.mock.calls.filter(([, options]) => options?.method === 'DELETE')).toHaveLength(1);
+    pending.resolve(response({}));
+    await waitFor(() => expect(remove).toHaveProperty('disabled', false));
+    expect(mock.mock.calls.filter(([, options]) => options?.method === 'DELETE')).toHaveLength(1);
+  });
   it('keeps existing weekdays when switching from a daily schedule to fixed weekly dates', async () => {
     await edit();
     fireEvent.change(screen.getByLabelText('Repeat'), { target: { value: 'daily' } });
