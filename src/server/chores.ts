@@ -46,8 +46,8 @@ export function saveOccurrence(db: DatabaseSync, input: OccurrenceInput): void {
     }
     const add = db.prepare('INSERT OR IGNORE INTO occurrence_assignees (occurrence_id, child_id) VALUES (?, ?)');
     for (const child of input.assignees) add.run(input.id, child);
-    const actual = (db.prepare('SELECT child_id FROM occurrence_assignees WHERE occurrence_id = ?').all(input.id) as { child_id: string }[]).map(x => x.child_id).sort();
-    if (JSON.stringify(actual) !== JSON.stringify([...input.assignees].sort())) throw new Error('Occurrence assignees conflict');
+    const actual = (db.prepare('SELECT child_id FROM occurrence_assignees WHERE occurrence_id = ?').all(input.id) as { child_id: string }[]).map(x => x.child_id).sort((a, b) => a.localeCompare(b));
+    if (JSON.stringify(actual) !== JSON.stringify([...input.assignees].sort((a, b) => a.localeCompare(b)))) throw new Error('Occurrence assignees conflict');
   });
 }
 export function setCompletion(db: DatabaseSync, occurrenceId: string, childId: string | null, completed: boolean, performedBy: string | null = null): boolean {
@@ -55,13 +55,13 @@ export function setCompletion(db: DatabaseSync, occurrenceId: string, childId: s
     const occurrence = db.prepare('SELECT mode, status FROM chore_occurrences WHERE id = ?').get(occurrenceId) as
       { mode: CompletionMode; status: string } | undefined;
     if (!occurrence || occurrence.status !== 'active') throw new Error('Active occurrence not found');
-    const assignees = (db.prepare('SELECT child_id FROM occurrence_assignees WHERE occurrence_id = ?').all(occurrenceId) as { child_id: string }[]).map(x => x.child_id);
+    const assignees = new Set((db.prepare('SELECT child_id FROM occurrence_assignees WHERE occurrence_id = ?').all(occurrenceId) as { child_id: string }[]).map(x => x.child_id));
     const key = occurrence.mode === 'each' ? childId : '';
-    if (key === null || (occurrence.mode === 'each' && !assignees.includes(key))) throw new Error('Invalid completion target');
-    if (performedBy !== null && !assignees.includes(performedBy)) throw new Error('Performer must be an assignee');
-    if (occurrence.mode === 'individual' && childId !== null && !assignees.includes(childId)) throw new Error('Invalid assignee');
+    if (key === null || (occurrence.mode === 'each' && !assignees.has(key))) throw new Error('Invalid completion target');
+    if (performedBy !== null && !assignees.has(performedBy)) throw new Error('Performer must be an assignee');
+    if (occurrence.mode === 'individual' && childId !== null && !assignees.has(childId)) throw new Error('Invalid assignee');
     const previous = db.prepare('SELECT completed FROM chore_completions WHERE occurrence_id = ? AND child_id = ?').get(occurrenceId, key) as { completed: number } | undefined;
-    if (previous?.completed === Number(completed) || (!previous && !completed)) return false;
+    if (previous?.completed === Number(completed) || (!previous?.completed && !completed)) return false;
     const now = new Date().toISOString();
     db.prepare(`INSERT INTO chore_completions (occurrence_id, child_id, completed, performed_by, updated_at)
       VALUES (?, ?, ?, ?, ?) ON CONFLICT(occurrence_id, child_id)
