@@ -65,11 +65,11 @@ export function previewOccurrences(db: DatabaseSync, scheduleId: string, from: s
     } else if (!due(schedule, day, anchor, weekdays)) continue;
     const exception = overrides.get(origin);
     const moved = exception?.action === 'move' && exception.new_date ? parseDate(exception.new_date) : day;
-    const begin = flexible ? moved : moved;
+    const begin = moved;
     const finish = flexible ? moved + 6 : moved;
     if (finish < start || begin > end) continue;
     const index = schedule.rotation === 'weekly' ? Math.floor((monday(day) - monday(anchor)) / 7) : day - anchor;
-    const assignees = schedule.rotation === 'none' ? children : [children[((index % children.length) + children.length) % children.length]];
+    const assignees = schedule.rotation === 'none' ? [...children] : [children[((index % children.length) + children.length) % children.length]];
     if (exception?.action === 'reassign' && exception.child_id) assignees.splice(0, assignees.length, exception.child_id);
     results.push({
       id: schedule.id + ':' + origin, key: schedule.id + ':' + origin,
