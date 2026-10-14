@@ -104,6 +104,72 @@ describe('parent schedule API', () => {
     expect(remaining.map(row => row.id)).toEqual(['completed-future', 'past']);
     expect(db.prepare("SELECT completed FROM chore_completions WHERE occurrence_id = 'completed-future'").get()).toMatchObject({ completed: 1 });
   });
+
+  it('previews generated weekly occurrences and rejects invalid ranges', async () => {
+    const created = await app.inject({ method: 'POST', url: '/api/parent/schedules', payload });
+    const url = '/api/parent/schedules/' + created.json().id + '/preview';
+    const preview = await app.inject({ method: 'GET', url: url + '?from=2026-10-12&to=2026-11-12' });
+    expect(preview.statusCode).toBe(200);
+    expect(preview.json().occurrences.length).toBeGreaterThan(0);
+    for (const query of ['?from=2026-02-30&to=2026-03-01', '?from=2026-11-01&to=2026-10-01',
+      '?from=2026-01-01&to=2027-12-01']) {
+      expect((await app.inject({ method: 'GET', url: url + query })).statusCode).toBe(400);
+    }
+    expect((await app.inject({ method: 'GET', url: '/api/parent/schedules/missing/preview' })).statusCode).toBe(404);
+  });
+  it('creates, replaces, lists and removes future exceptions', async () => {
+    const created = await app.inject({ method: 'POST', url: '/api/parent/schedules', payload });
+    const url = '/api/parent/schedules/' + created.json().id + '/exceptions';
+    const date = '2026-12-07';
+    expect((await app.inject({ method: 'PUT', url: url + '/' + date, payload: { action: 'skip' } })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'GET', url })).json().exceptions).toEqual([
+      expect.objectContaining({ originalDate: date, action: 'skip' }),
+    ]);
+    expect((await app.inject({ method: 'PUT', url: url + '/' + date,
+      payload: { action: 'move', newDate: '2026-12-08' } })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'GET', url })).json().exceptions[0]).toMatchObject({
+      action: 'move', newDate: '2026-12-08',
+    });
+    expect((await app.inject({ method: 'PUT', url: url + '/' + date,
+      payload: { action: 'reassign', childId: 'miller' } })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'GET', url })).json().exceptions[0]).toMatchObject({
+      action: 'reassign', childId: 'miller',
+    });
+    expect((await app.inject({ method: 'DELETE', url: url + '/' + date })).json()).toEqual({ removed: true });
+    expect((await app.inject({ method: 'GET', url })).json().exceptions).toEqual([]);
+    expect((await app.inject({ method: 'DELETE', url: url + '/' + date })).json()).toEqual({ removed: false });
+  });
+  it('rejects malformed, past and unknown-schedule exceptions', async () => {
+    const created = await app.inject({ method: 'POST', url: '/api/parent/schedules', payload });
+    const url = '/api/parent/schedules/' + created.json().id + '/exceptions';
+    for (const input of [{ action: 'unknown' }, { action: 'move' },
+      { action: 'move', newDate: '2026-01-01' }, { action: 'reassign', childId: 'unknown' },
+      { action: 'skip', childId: 'porter' }, { action: 'move', newDate: '2026-12-08', childId: 'porter' },
+      { action: 'reassign', childId: 'porter', newDate: '2026-12-08' }]) {
+      expect((await app.inject({ method: 'PUT', url: url + '/2026-12-07', payload: input })).statusCode).toBe(400);
+    }
+    expect((await app.inject({ method: 'PUT', url: url + '/2026-01-01',
+      payload: { action: 'skip' } })).statusCode).toBe(400);
+    expect((await app.inject({ method: 'PUT', url: '/api/parent/schedules/missing/exceptions/2026-12-07',
+      payload: { action: 'skip' } })).statusCode).toBe(404);
+    expect((await app.inject({ method: 'GET', url: '/api/parent/schedules/missing/exceptions' })).statusCode).toBe(404);
+    expect((await app.inject({ method: 'DELETE', url: '/api/parent/schedules/missing/exceptions/2026-12-07' })).statusCode).toBe(404);
+    expect((await app.inject({ method: 'DELETE', url: url + '/2026-01-01' })).statusCode).toBe(400);
+  });
+  it('protects completion history against exception changes and removal', async () => {
+    const created = await app.inject({ method: 'POST', url: '/api/parent/schedules', payload });
+    const { id, choreId } = created.json() as { id: string; choreId: string };
+    db.prepare(`INSERT INTO chore_occurrences (id, occurrence_key, chore_id, schedule_id, starts_on, due_on, mode)
+      VALUES ('protected', ?, ?, ?, '2026-12-07', '2026-12-07', 'individual')`)
+      .run(id + ':2026-12-07', choreId, id);
+    db.prepare("INSERT INTO occurrence_assignees (occurrence_id, child_id) VALUES ('protected', 'porter')").run();
+    db.prepare(`INSERT INTO chore_completions (occurrence_id, child_id, completed, updated_at)
+      VALUES ('protected', '', 1, '2026-10-14T12:00:00Z')`).run();
+    const url = '/api/parent/schedules/' + id + '/exceptions/2026-12-07';
+    expect((await app.inject({ method: 'PUT', url, payload: { action: 'skip' } })).statusCode).toBe(409);
+    expect((await app.inject({ method: 'DELETE', url })).statusCode).toBe(409);
+    expect(db.prepare("SELECT completed FROM chore_completions WHERE occurrence_id = 'protected'").get()).toMatchObject({ completed: 1 });
+  });
   it('rejects invalid pause payload and unknown schedules', async () => {
     expect((await app.inject({ method: 'PATCH', url: '/api/parent/schedules/unknown', payload: { paused: true } })).statusCode).toBe(404);
     expect((await app.inject({ method: 'PATCH', url: '/api/parent/schedules/unknown', payload: { paused: 'yes' } })).statusCode).toBe(400);
