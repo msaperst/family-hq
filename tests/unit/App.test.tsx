@@ -282,3 +282,65 @@ describe('overdue completion undo window', () => {
     } finally { vi.useRealTimers(); }
   });
 });
+
+describe('overdue undo branch coverage', () => {
+  it('retains a completed shared overdue chore in the Either child column', async () => {
+    const sharedOverdue = {
+      id: 'shared-overdue', name: 'Shared overdue task', startsOn: '2026-10-13',
+      dueOn: '2026-10-13', mode: 'either' as const, childId: null, completed: false,
+    };
+    let completed = false;
+    fetchMock.mockImplementation(async (_url, options) => {
+      if (options && 'method' in options && options.method === 'PUT') {
+        completed = JSON.parse(options.body as string).completed as boolean;
+        return { ok: true } as Response;
+      }
+      return response({ ...fixture, columns: [{
+        id: 'either', name: 'Either child',
+        chores: completed ? [] : [sharedOverdue],
+      }] });
+    });
+    render(<App />);
+    const checkbox = await screen.findByRole('checkbox', { name: /Shared overdue task/ });
+    fireEvent.click(checkbox);
+    await waitFor(() => expect(screen.getByRole('checkbox', { name: /Shared overdue task/ })).toHaveProperty('checked', true));
+    expect(within(screen.getByRole('region', { name: 'Either child' })).getByText('Shared overdue task')).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledWith('/api/chores/shared-overdue/completion', expect.objectContaining({
+      body: JSON.stringify({ childId: null, completed: true }),
+    }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /Shared overdue task/ }));
+    await waitFor(() => expect(screen.getByRole('checkbox', { name: /Shared overdue task/ })).toHaveProperty('checked', false));
+    expect(completed).toBe(false);
+  });
+
+  it('keeps the local completed state when a refresh still returns an unchecked overdue chore', async () => {
+    // Simulate a stale read during eventual synchronization.
+    fetchMock.mockImplementation(async (_url, options) => {
+      if (options && 'method' in options && options.method === 'PUT') return { ok: true } as Response;
+      return response();
+    });
+    render(<App />);
+    const checkbox = await screen.findByRole('checkbox', { name: /Laundry/ });
+    fireEvent.click(checkbox);
+    await waitFor(() => expect(screen.getByRole('checkbox', { name: /Laundry/ })).toHaveProperty('checked', true));
+    fireEvent(document, new Event('visibilitychange'));
+    await waitFor(() => expect(fetchMock.mock.calls.filter(([url]) => url === '/api/chores?more=false').length).toBeGreaterThanOrEqual(3));
+    expect(screen.getByRole('checkbox', { name: /Laundry/ })).toHaveProperty('checked', true);
+    fireEvent.click(screen.getByRole('checkbox', { name: /Laundry/ }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/chores/overdue/completion', expect.objectContaining({
+      body: JSON.stringify({ childId: 'porter', completed: false }),
+    })));
+  });
+
+  it('does not start an undo window when saving an overdue completion fails', async () => {
+    fetchMock.mockImplementation(async (_url, options) => {
+      if (options && 'method' in options && options.method === 'PUT') return { ok: false } as Response;
+      return response();
+    });
+    render(<App />);
+    const checkbox = await screen.findByRole('checkbox', { name: /Laundry/ });
+    fireEvent.click(checkbox);
+    expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'Could not save completion');
+    expect(screen.getByRole('checkbox', { name: /Laundry/ })).toHaveProperty('checked', false);
+  });
+});
