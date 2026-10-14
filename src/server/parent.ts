@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import type { FastifyInstance } from 'fastify';
+import { localToday } from './dashboard.js';
 
 type Mode = 'individual' | 'either' | 'each';
 type Frequency = 'once' | 'daily' | 'weekly' | 'interval_days' | 'interval_weeks';
@@ -74,10 +75,13 @@ export function registerParentApi(app: FastifyInstance, db: DatabaseSync): void 
     if (!existing) return reply.code(404).send({ error: 'Schedule not found' });
     const known = db.prepare('SELECT id FROM children WHERE active = 1').all() as { id: string }[];
     if (input.assignees.some(id => !known.some(child => child.id === id))) return reply.code(400).send({ error: 'Unknown or inactive child' });
-    // Existing generated occurrences are immutable: preserve completions and audit history.
-    // Schedule edits affect only occurrences that have not yet been generated.
+    // Reconcile untouched future occurrences, retaining history and completions.
     db.exec('BEGIN IMMEDIATE');
     try {
+      db.prepare(`DELETE FROM chore_occurrences WHERE schedule_id = ? AND starts_on > ?
+        AND NOT EXISTS (SELECT 1 FROM chore_completions WHERE occurrence_id = chore_occurrences.id)
+        AND NOT EXISTS (SELECT 1 FROM completion_events WHERE occurrence_id = chore_occurrences.id)`)
+        .run(request.params.id, localToday());
       db.prepare('UPDATE chores SET name = ? WHERE id = ?').run(input.name.trim(), existing.chore_id);
       db.prepare(`UPDATE chore_schedules SET mode = ?, frequency = ?, interval_count = ?, weekdays = ?,
         anchor_date = ?, end_date = ?, rotation = ? WHERE id = ?`)
