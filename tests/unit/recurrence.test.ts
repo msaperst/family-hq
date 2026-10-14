@@ -150,10 +150,11 @@ describe('recurrence engine', () => {
     } finally { db.close(); }
   });
   it('rejects invalid intervals and handles ranges entirely before an anchor', () => {
-    const db = fixture({interval:0});
+    const db = fixture();
     try {
-      expect(()=>previewOccurrences(db,'schedule','2026-10-12','2026-10-14')).toThrow('Invalid interval');
-      db.prepare("UPDATE chore_schedules SET interval_count=1, anchor_date='2026-10-20' WHERE id='schedule'").run();
+      expect(() => db.prepare("UPDATE chore_schedules SET interval_count=0 WHERE id='schedule'").run())
+        .toThrow('CHECK constraint failed');
+      db.prepare("UPDATE chore_schedules SET anchor_date='2026-10-20' WHERE id='schedule'").run();
       expect(previewOccurrences(db,'schedule','2026-10-12','2026-10-14')).toEqual([]);
     } finally { db.close(); }
   });
