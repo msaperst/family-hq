@@ -502,3 +502,53 @@ describe('chore pagination edge cases', () => {
     expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('window=true'))).toHaveLength(12);
   });
 });
+
+describe('additional dashboard recovery paths', () => {
+  it('uses a generic message for non-Error initial failures', async () => {
+    fetchMock.mockRejectedValue('offline');
+    render(<App />);
+    const panel = await screen.findByRole('region', { name: 'Chores' });
+    expect(within(panel).getByRole('alert').textContent).toBe('Unable to load chores');
+  });
+
+  it('retries a network-rejected future week and retains existing chores', async () => {
+    let pages = 0;
+    fetchMock.mockImplementation(async url => {
+      if (String(url).includes('window=true')) {
+        pages++;
+        if (pages === 1) throw new Error('Disconnected');
+        return response({ today: '2026-10-21', through: '2026-10-27', columns: [] });
+      }
+      return response();
+    });
+    render(<App />);
+    await screen.findByText('Make bed');
+    fireEvent.click(screen.getAllByRole('button', { name: 'Load more chores' })[0]);
+    const retry = await screen.findAllByRole('button', { name: 'Retry loading chores' });
+    expect(screen.getByText('Make bed')).toBeTruthy();
+    fireEvent.click(retry[0]);
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Retry loading chores' })).toBeNull());
+    expect(pages).toBe(2);
+    expect(screen.getByText('Make bed')).toBeTruthy();
+  });
+
+  it('refreshes existing chore details after another week has loaded', async () => {
+    let latest = false;
+    fetchMock.mockImplementation(async url => {
+      if (String(url).includes('window=true')) return response({ today: '2026-10-21', through: '2026-10-27', columns: [] });
+      if (!latest) return response();
+      return response({ ...fixture, columns: fixture.columns.map(column => ({
+        ...column, chores: column.chores.map(chore => chore.id === 'bed' ? { ...chore, name: 'Make bed updated' } : chore),
+      })) });
+    });
+    render(<App />);
+    await screen.findByText('Make bed');
+    fireEvent.click(screen.getAllByRole('button', { name: 'Load more chores' })[0]);
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => String(url).includes('window=true'))).toBe(true));
+    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Load more chores' }).length).toBeGreaterThan(0));
+    latest = true;
+    fireEvent(document, new Event('visibilitychange'));
+    expect(await screen.findByText('Make bed updated')).toBeTruthy();
+    expect(screen.queryByText('Make bed')).toBeNull();
+  });
+});
