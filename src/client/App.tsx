@@ -117,6 +117,7 @@ export function App() {
         const choresForColumn = [...column.chores.map(chore => undoEntries.some(entry => entry.chore.id === chore.id) ? { ...chore, completed: true } : chore), ...retained.map(entry => entry.chore)];
         return <section className="column" key={column.id} aria-label={column.name}>
         <div className="column-heading"><h2>{column.name}</h2><p>{choresForColumn.filter(chore => chore.completed).length} completed</p></div>
+        <div className="column-body">
         {groups.map(group => {
           const chores = choresForColumn.filter(chore => (undoEntries.some(entry => entry.chore.id === chore.id) ? 'overdue' : sectionFor(chore, today)) === group.id);
           if (!chores.length) return null;
@@ -131,6 +132,7 @@ export function App() {
             })}
           </section>;
         })}
+        </div>
       </section>; })}
     </div>}
     </div><CalendarPanel today={today} /></div>

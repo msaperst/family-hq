@@ -48,7 +48,7 @@ export function CalendarPanel({ today }: { today: string }) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const scroller = useRef<HTMLElement>(null);
+  const scroller = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
   const daysRef = useRef(7);
   const MAX_DAYS = 90;
@@ -125,8 +125,9 @@ export function CalendarPanel({ today }: { today: string }) {
   }, [loadMore, loadError]);
   const upcoming = activeAgenda(events, now);
   const days = Array.from({ length: loadedDays }, (_, index) => addDays(today, index));
-  return <section className="calendar-panel" aria-label="Family calendar" ref={scroller} onScroll={onScroll}>
+  return <section className="calendar-panel" aria-label="Family calendar">
     <div className="calendar-heading"><h2>Coming up</h2></div>
+    <div className="calendar-body" ref={scroller} onScroll={onScroll}>
     {status === 'stale' && <p role="status" className="calendar-status">Showing saved events</p>}
     {status === 'unavailable' && <p role="status" className="calendar-status">Calendar unavailable · chores still work</p>}
     {status === 'loading' && <p>Loading calendar…</p>}
@@ -149,5 +150,6 @@ export function CalendarPanel({ today }: { today: string }) {
       {!hasMore && <p className="calendar-empty">End of 90-day calendar window</p>}
       {hasMore && !loadingMore && !loadError && <button type="button" className="agenda-more" onClick={() => void loadMore()}>Load more events</button>}
     </div>}
+    </div>
   </section>;
 }
