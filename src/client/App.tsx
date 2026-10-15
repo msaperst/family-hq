@@ -1,3 +1,4 @@
+import { CalendarPanel } from './CalendarPanel';
 import { useCallback, useEffect, useState } from 'react';
 import type { DashboardChore, DashboardResponse } from '../shared/dashboard';
 
@@ -107,6 +108,7 @@ export function App() {
       <div><h1>Family HQ</h1><p>{new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', dateStyle: 'full' }).format(new Date(today + 'T00:00:00Z'))}</p></div>
       <span className="connection">{error ? 'Connection issue' : 'Connected'}</span>
     </header>
+    <CalendarPanel today={today} />
     {error && <p role="alert" className="error">{error}</p>}
     {!data && !error && <p>Loading chores…</p>}
     {data?.columns.length === 0 && <p className="empty">No chores scheduled. Everyone's caught up!</p>}
