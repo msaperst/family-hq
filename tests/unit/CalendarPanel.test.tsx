@@ -177,12 +177,17 @@ describe('CalendarPanel UI and data lifecycle', () => {
 
   it('updates the agenda when an event ends without another network request', async () => {
     vi.useRealTimers();
-    vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-10-15T23:00:00Z'));
     fetchMock.mockResolvedValue(reply([event('Ending soon', '2026-10-15T22:00:00Z', '2026-10-15T23:01:00Z')]));
     render(<CalendarPanel today={TODAY} />);
     expect(await screen.findByText('Ending soon')).toBeTruthy();
     expect(screen.getByText('In progress')).toBeTruthy();
+    // React registered its interval using real timers; switch the clock and
+    // remount under fake timers to exercise the scheduled minute update.
+    cleanup();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-15T23:00:00Z'));
+    await act(async () => { render(<CalendarPanel today={TODAY} />); });
     await act(async () => { await vi.advanceTimersByTimeAsync(120_000); });
     expect(screen.queryByText('Ending soon')).toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(1);
