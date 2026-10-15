@@ -17,6 +17,80 @@ beforeEach(() => {
   vi.setSystemTime(new Date('2026-10-15T23:00:00Z'));
   fetchMock.mockResolvedValue(reply());
   vi.stubGlobal('fetch', fetchMock);
+  it('shows all-day multi-day events and excludes expired all-day events', async () => {
+    fetchMock.mockResolvedValue(reply([
+      { id: 'camp', title: 'Camping', start: '2026-10-15', end: '2026-10-17', allDay: true, location: null },
+      { id: 'old', title: 'Yesterday only', start: '2026-10-14', end: '2026-10-15', allDay: true, location: null },
+    ]));
+    render(<CalendarPanel today={TODAY} />);
+    expect(await screen.findAllByText('Camping')).toHaveLength(2);
+    expect(screen.getAllByText('All day')).toHaveLength(2);
+    expect(screen.queryByText('Yesterday only')).toBeNull();
+  });
+
+  it('marks a paginated stale response as saved data', async () => {
+    fetchMock.mockImplementation(async url => String(url) === initialUrl ? reply() : reply([], true));
+    render(<CalendarPanel today={TODAY} />);
+    const button = await screen.findByRole('button', { name: 'Load more events' });
+    fireEvent.click(button);
+    expect((await screen.findByRole('status')).textContent).toContain('Showing saved events');
+  });
+
+  it.each([
+    ['HTTP error', { ok: false } as Response],
+    ['invalid response', { ok: true, json: async () => ({ invalid: true }) } as Response],
+  ])('offers retry after paginated %s', async (_description, failedResponse) => {
+    fetchMock.mockImplementation(async url => String(url) === initialUrl ? reply() : failedResponse);
+    render(<CalendarPanel today={TODAY} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Load more events' }));
+    expect(await screen.findByRole('button', { name: 'Retry loading events' })).toBeTruthy();
+  });
+
+  it('updates the agenda when an event ends without another network request', async () => {
+    fetchMock.mockResolvedValue(reply([event('Ending soon', '2026-10-15T22:00:00Z', '2026-10-15T23:01:00Z')]));
+    render(<CalendarPanel today={TODAY} />);
+    expect(await screen.findByText('Ending soon')).toBeTruthy();
+    expect(screen.getByText('In progress')).toBeTruthy();
+    await act(async () => { vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-15T23:02:00Z')); await vi.advanceTimersByTimeAsync(60_000); });
+    expect(screen.queryByText('Ending soon')).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not refresh while the document is hidden', async () => {
+    const previous = Object.getOwnPropertyDescriptor(document, 'hidden');
+    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+    try {
+      render(<CalendarPanel today={TODAY} />);
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+      fireEvent(document, new Event('visibilitychange'));
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      if (previous) Object.defineProperty(document, 'hidden', previous);
+      else Reflect.deleteProperty(document, 'hidden');
+    }
+  });
+
+  it('resets the date range and aborts the previous request when the day changes', async () => {
+    const { rerender } = render(<CalendarPanel today={TODAY} />);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const signal = (fetchMock.mock.calls[0][1] as RequestInit).signal as AbortSignal;
+    rerender(<CalendarPanel today="2026-10-16" />);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(calendarUrl('2026-10-16', '2026-10-23'), { signal: expect.any(AbortSignal) }));
+    expect(signal.aborted).toBe(true);
+  });
+
+  it('reaches the 90-day limit with a final four-day request and stops loading', async () => {
+    fetchMock.mockResolvedValue(reply());
+    render(<CalendarPanel today={TODAY} />);
+    for (let i = 0; i < 12; i++) {
+      fireEvent.click(await screen.findByRole('button', { name: 'Load more events' }));
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(i + 2));
+    }
+    expect(await screen.findByText('End of 90-day calendar window')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Load more events' })).toBeNull();
+    expect(fetchMock.mock.calls.at(-1)?.[0]).toBe(calendarUrl('2027-01-07', '2027-01-13'));
+  });
+
 });
 afterEach(() => {
   cleanup();
