@@ -188,9 +188,11 @@ describe('CalendarPanel UI and data lifecycle', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-10-15T23:00:00Z'));
     await act(async () => { render(<CalendarPanel today={TODAY} />); });
+    const requestsBeforeClockAdvance = fetchMock.mock.calls.length;
+    expect(requestsBeforeClockAdvance).toBe(2); // one initial fetch per mount
     await act(async () => { await vi.advanceTimersByTimeAsync(120_000); });
     expect(screen.queryByText('Ending soon')).toBeNull();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(requestsBeforeClockAdvance);
   });
 
   it('does not refresh while the document is hidden', async () => {
