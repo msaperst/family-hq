@@ -401,3 +401,104 @@ describe('weekly chore pagination and service recovery', () => {
     await waitFor(() => expect(within(screen.getByRole('region', { name: 'Porter' })).queryByRole('alert')).toBeNull());
   });
 });
+
+describe('chore pagination edge cases', () => {
+  const nextPage = (id: string, name: string): DashboardResponse => ({
+    today: '2026-10-21', through: '2026-10-27',
+    columns: [{ id: 'porter', name: 'Porter', chores: [{
+      id, name, startsOn: '2026-10-22', dueOn: '2026-10-22',
+      mode: 'individual', childId: 'porter', completed: false,
+    }] }],
+  });
+  it('loads the next week when a chore column is scrolled near the bottom', async () => {
+    fetchMock.mockImplementation(async url => response(String(url).includes('window=true') ? nextPage('new', 'Scroll loaded') : fixture));
+    render(<App />);
+    const column = await screen.findByRole('region', { name: 'Porter' });
+    const body = column.querySelector('.column-body') as HTMLDivElement;
+    Object.defineProperties(body, {
+      scrollHeight: { configurable: true, value: 1000 },
+      clientHeight: { configurable: true, value: 300 },
+      scrollTop: { configurable: true, value: 100, writable: true },
+    });
+    fireEvent.scroll(body);
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('window=true'))).toHaveLength(0);
+    Object.defineProperty(body, 'scrollTop', { configurable: true, value: 600 });
+    fireEvent.scroll(body);
+    expect(await screen.findByText('Scroll loaded')).toBeTruthy();
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('window=true'))).toHaveLength(1);
+  });
+  it('does not send duplicate page requests while the first is pending', async () => {
+    let finish!: (result: Response) => void;
+    fetchMock.mockImplementation(async url => {
+      if (String(url).includes('window=true')) return new Promise<Response>(resolve => { finish = resolve; });
+      return response();
+    });
+    render(<App />);
+    const porter = await screen.findByRole('region', { name: 'Porter' });
+    fireEvent.click(within(porter).getByRole('button', { name: 'Load more chores' }));
+    const body = porter.querySelector('.column-body') as HTMLDivElement;
+    fireEvent.scroll(body);
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('window=true'))).toHaveLength(1);
+    finish(response(nextPage('one', 'Pending finished')));
+    expect(await screen.findByText('Pending finished')).toBeTruthy();
+  });
+  it('adds a new child column from a later week and preserves it during refresh', async () => {
+    const second = { ...nextPage('miller-task', 'Miller later'), columns: [{
+      id: 'miller', name: 'Miller', chores: [{ ...nextPage('miller-task', 'Miller later').columns[0].chores[0], childId: 'miller' }],
+    }] };
+    fetchMock.mockImplementation(async url => response(String(url).includes('window=true') ? second : fixture));
+    render(<App />);
+    await screen.findByText('Make bed');
+    fireEvent.click(screen.getAllByRole('button', { name: 'Load more chores' })[0]);
+    expect(await screen.findByText('Miller later')).toBeTruthy();
+    fireEvent(document, new Event('visibilitychange'));
+    await waitFor(() => expect(screen.getByText('Miller later')).toBeTruthy());
+    expect(screen.getByRole('region', { name: 'Porter' })).toBeTruthy();
+  });
+  it('retains loaded future chores after refreshing the initial week', async () => {
+    let refreshed = false;
+    fetchMock.mockImplementation(async url => {
+      if (String(url).includes('window=true')) return response(nextPage('future', 'Future retained'));
+      return response(refreshed ? { ...fixture, columns: fixture.columns.map(column => ({
+        ...column, chores: column.chores.filter(chore => chore.id !== 'bed'),
+      })) } : fixture);
+    });
+    render(<App />);
+    await screen.findByText('Make bed');
+    fireEvent.click(screen.getAllByRole('button', { name: 'Load more chores' })[0]);
+    await screen.findByText('Future retained');
+    refreshed = true;
+    fireEvent(document, new Event('visibilitychange'));
+    await waitFor(() => expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('more=false')).length).toBeGreaterThan(1));
+    expect(screen.getByText('Future retained')).toBeTruthy();
+  });
+  it('allows completing a chore loaded from a later week', async () => {
+    fetchMock.mockImplementation(async (url, options) => {
+      if (options?.method === 'PUT') return { ok: true } as Response;
+      return response(String(url).includes('window=true') ? nextPage('later-task', 'Later task') : fixture);
+    });
+    render(<App />);
+    await screen.findByText('Make bed');
+    fireEvent.click(screen.getAllByRole('button', { name: 'Load more chores' })[0]);
+    const later = await screen.findByRole('checkbox', { name: /Later task/ });
+    fireEvent.click(later);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/chores/later-task/completion', expect.objectContaining({
+      method: 'PUT', body: JSON.stringify({ childId: 'porter', completed: true }),
+    })));
+  });
+  it('stops offering further pages after thirteen weeks', async () => {
+    fetchMock.mockImplementation(async url => response(String(url).includes('window=true')
+      ? { ...nextPage('none', 'Unused'), columns: [] }
+      : fixture));
+    render(<App />);
+    await screen.findByText('Make bed');
+    for (let week = 1; week < 13; week++) {
+      const button = screen.getAllByRole('button', { name: 'Load more chores' })[0];
+      fireEvent.click(button);
+      await waitFor(() => expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('window=true')).length).toBe(week));
+      if (week < 12) await waitFor(() => expect(screen.getAllByRole('button', { name: 'Load more chores' }).length).toBeGreaterThan(0));
+    }
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Load more chores' })).toBeNull());
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('window=true'))).toHaveLength(12);
+  });
+});
