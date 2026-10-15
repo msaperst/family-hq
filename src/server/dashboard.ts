@@ -46,7 +46,9 @@ export function dashboard(db: DatabaseSync, today: string, extraDays = 0): Dashb
     if (isShared && seenShared.has(row.id)) continue;
     if (isShared) seenShared.add(row.id);
     const target = isShared ? shared : columns.get(row.child_id);
-    // SQL joins active children, which are also the keys of columns.
+    // SQL joins active children, which should also be keys of columns.
+    // Preserve the invariant explicitly for TypeScript and unexpected DB inconsistencies.
+    if (!target) throw new Error('Active child missing from dashboard columns: ' + row.child_id);
     target.chores.push({
       id: row.id, name: row.name, startsOn: row.starts_on, dueOn: row.due_on,
       mode: row.mode, childId: isShared ? null : row.child_id, completed: row.completed === 1,
