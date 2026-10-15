@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+vi.mock('../../src/client/CalendarPanel', () => ({ CalendarPanel: () => null }));
 import { App } from '../../src/client/App';
 import type { DashboardResponse } from '../../src/shared/dashboard';
 
@@ -37,7 +38,7 @@ describe('Family HQ dashboard', () => {
     fetchMock.mockReturnValue(new Promise(() => {}));
     render(<App />);
     expect(screen.getByText('Loading chores…')).toBeTruthy();
-    expect(fetchMock).toHaveBeenCalledWith('/api/chores?more=false', { signal: expect.any(AbortSignal) });
+    expect(fetchMock).toHaveBeenCalledWith('/api/chores?more=true', { signal: expect.any(AbortSignal) });
   });
   it('renders dynamic columns, overdue chores, tomorrow and flexible weekly chores', async () => {
     render(<App />);
@@ -45,15 +46,14 @@ describe('Family HQ dashboard', () => {
     expect(within(porter).getByText('Yesterday · Overdue')).toBeTruthy();
     expect(within(porter).getByText('Tomorrow')).toBeTruthy();
     expect(within(porter).getByText('Clean room')).toBeTruthy();
-    expect(within(porter).queryByText('Dishes')).toBeNull();
+    expect(within(porter).getByText('Dishes')).toBeTruthy();
     expect(screen.getByRole('region', { name: 'Either child' })).toBeTruthy();
     expect(screen.queryByRole('region', { name: 'Miller' })).toBeNull();
   });
-  it('expands additional upcoming chores on request', async () => {
+  it('shows upcoming chores without requiring an expansion button', async () => {
     render(<App />);
-    await screen.findByText('Make bed');
-    fireEvent.click(screen.getByRole('button', { name: 'Show more upcoming chores' }));
     expect(await screen.findByText('Dishes')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Show more upcoming chores/ })).toBeNull();
     expect(fetchMock).toHaveBeenCalledWith('/api/chores?more=true', { signal: expect.any(AbortSignal) });
   });
   it('sends completion updates for individual chores', async () => {
@@ -145,26 +145,16 @@ describe('Family HQ dashboard', () => {
     fireEvent(document, new Event('visibilitychange'));
     await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThan(before));
   });
-  it('shows upcoming hints when a column has only later chores', async () => {
+  it('shows later chores directly without a hint or toggle', async () => {
     fetchMock.mockResolvedValue(response({ ...fixture, columns: [{
-      id: 'porter', name: 'Porter', chores: [{
-        id: 'future', name: 'Faraway task', startsOn: '2026-10-19', dueOn: '2026-10-19',
-        mode: 'individual', childId: 'porter', completed: false,
-      }],
-    }] }));
+        id: 'porter', name: 'Porter', chores: [{
+          id: 'future', name: 'Faraway task', startsOn: '2026-10-19', dueOn: '2026-10-19',
+          mode: 'individual', childId: 'porter', completed: false,
+        }],
+      }] }));
     render(<App />);
-    expect(await screen.findByText(/Chores coming up/)).toBeTruthy();
-    expect(screen.queryByText('Faraway task')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Show more upcoming chores' }));
     expect(await screen.findByText('Faraway task')).toBeTruthy();
-  });
-  it('collapses upcoming chores after expanding', async () => {
-    render(<App />);
-    await screen.findByText('Make bed');
-    fireEvent.click(screen.getByRole('button', { name: 'Show more upcoming chores' }));
-    expect(await screen.findByText('Dishes')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Hide upcoming chores' }));
-    await waitFor(() => expect(screen.queryByText('Dishes')).toBeNull());
+    expect(screen.queryByRole('button', { name: /upcoming chores/i })).toBeNull();
   });
   it('refreshes automatically on the 30-second polling interval', async () => {
     vi.useFakeTimers();

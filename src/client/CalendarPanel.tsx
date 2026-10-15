@@ -70,6 +70,7 @@ export function CalendarPanel({ today }: { today: string }) {
         const response = await fetch('/api/calendar/events?from=' + today + '&to=' + addDays(today, 7), { signal: controller.signal });
         if (!response.ok) throw new Error('Calendar unavailable');
         const result = await response.json() as { events: FamilyEvent[]; stale: boolean };
+        if (!Array.isArray(result?.events)) throw new Error('Invalid calendar response');
         if (!controller.signal.aborted) {
           setEvents(previous => {
             const merged = new Map(previous.map(event => [event.id, event]));
@@ -100,6 +101,7 @@ export function CalendarPanel({ today }: { today: string }) {
       const response = await fetch('/api/calendar/events?from=' + from + '&to=' + addDays(from, nextDays));
       if (!response.ok) throw new Error('Could not load more events');
       const result = await response.json() as { events: FamilyEvent[]; stale: boolean };
+      if (!Array.isArray(result?.events)) throw new Error('Invalid calendar response');
       setEvents(previous => {
         const merged = new Map(previous.map(event => [event.id, event]));
         for (const event of result.events) merged.set(event.id, event);
