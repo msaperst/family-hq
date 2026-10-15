@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 export interface FamilyEvent {
   id: string;
@@ -44,7 +44,14 @@ export function isInProgress(event: FamilyEvent, now: Date): boolean {
 export function CalendarPanel({ today }: { today: string }) {
   const [events, setEvents] = useState<FamilyEvent[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'stale' | 'unavailable'>('loading');
-  const [expanded, setExpanded] = useState(false);
+  const [loadedDays, setLoadedDays] = useState(7);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const scroller = useRef<HTMLElement>(null);
+  const loadingRef = useRef(false);
+  const daysRef = useRef(7);
+  const MAX_DAYS = 90;
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 60_000);
@@ -72,36 +79,30 @@ export function CalendarPanel({ today }: { today: string }) {
     return () => { controller.abort(); clearInterval(interval); document.removeEventListener('visibilitychange', visible); };
   }, [today]);
   const upcoming = activeAgenda(events, now);
-  const days = Array.from({ length: 7 }, (_, index) => addDays(today, index));
-  const visibleEvents = expanded ? upcoming : upcoming.slice(0, 5);
-  return <section className="calendar-panel" aria-label="Family calendar">
-    <div className="calendar-heading">
-      <h2>{expanded ? 'This week' : 'Coming up'}</h2>
-      <button type="button" className="calendar-toggle" aria-expanded={expanded} onClick={() => setExpanded(value => !value)}>
-        {expanded ? 'Compact view' : 'Full week'}
-      </button>
-    </div>
+  const days = Array.from({ length: loadedDays }, (_, index) => addDays(today, index));
+  return <section className="calendar-panel" aria-label="Family calendar" ref={scroller} onScroll={onScroll}>
+    <div className="calendar-heading"><h2>Coming up</h2></div>
     {status === 'stale' && <p role="status" className="calendar-status">Showing saved events</p>}
     {status === 'unavailable' && <p role="status" className="calendar-status">Calendar unavailable · chores still work</p>}
     {status === 'loading' && <p>Loading calendar…</p>}
-    {status !== 'loading' && !expanded && <>
-      {visibleEvents.length === 0 && <p className="calendar-empty">Nothing else scheduled this week.</p>}
-      <ul className="agenda-list">{visibleEvents.map(event => <li key={event.id} className="agenda-event">
-        <div className="agenda-meta">{eventTime(event)} · {new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric' }).format(new Date(eventDay(event) + 'T00:00:00Z'))}</div>
-        <strong>{event.title}</strong>
-        {isInProgress(event, now) && <span className="agenda-live">In progress</span>}
-        {event.location && <small title={event.location}>{event.location}</small>}
-      </li>)}</ul>
-      {upcoming.length > visibleEvents.length && <button type="button" className="agenda-more" onClick={() => setExpanded(true)}>View all {upcoming.length} upcoming events</button>}
-    </>}
-    {status !== 'loading' && expanded && <div className="calendar-week">{days.map(day => {
-      const dayEvents = events.filter(event => occursOn(event, day));
-      return <section className="calendar-day" key={day}>
-        <h3>{new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric' }).format(new Date(day + 'T00:00:00Z'))}{day === today ? ' · Today' : ''}</h3>
-        {dayEvents.length === 0 ? <p className="calendar-empty">No events</p> : <ul>{dayEvents.map(event => <li key={event.id}>
-          <time>{eventTime(event)}</time><span><strong>{event.title}</strong>{event.location && <small>{event.location}</small>}</span>
-        </li>)}</ul>}
-      </section>;
-    })}</div>}
+    {status !== 'loading' && <div className="calendar-agenda">
+      {days.map(day => {
+        const dayEvents = upcoming.filter(event => occursOn(event, day));
+        if (!dayEvents.length) return null;
+        return <section className="agenda-day" key={day}>
+          <h3>{new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric' }).format(new Date(day + 'T00:00:00Z'))}{day === today ? ' · Today' : ''}</h3>
+          <ul className="agenda-list">{dayEvents.map(event => <li key={event.id} className="agenda-event">
+            <div className="agenda-meta">{eventTime(event)}</div>
+            <strong>{event.title}</strong>
+            {isInProgress(event, now) && <span className="agenda-live">In progress</span>}
+            {event.location && <small title={event.location}>{event.location}</small>}
+          </li>)}</ul>
+        </section>;
+      })}
+      {loadingMore && <p role="status">Loading more events…</p>}
+      {loadError && <button type="button" className="agenda-more" onClick={() => void loadMore()}>Retry loading events</button>}
+      {!hasMore && <p className="calendar-empty">End of 90-day calendar window</p>}
+      {hasMore && !loadingMore && !loadError && <button type="button" className="agenda-more" onClick={() => void loadMore()}>Load more events</button>}
+    </div>}
   </section>;
 }

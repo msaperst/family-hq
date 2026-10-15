@@ -83,3 +83,21 @@ h1 { font-size: clamp(1.8rem, 4vw, 2.5rem); margin: 0; }
 @media (max-width: 540px) {
   .dashboard-content .calendar-panel .agenda-list { grid-template-columns: 1fr; }
 }
+
+/* Full-height, independently scrollable landscape dashboard. */
+@media (min-width: 951px) and (orientation: landscape) {
+  html, body, #root { height: 100%; }
+  .dashboard { height: 100dvh; max-width: none; display: flex; flex-direction: column; overflow: hidden; padding-bottom: 14px; }
+  .dashboard-header { flex: none; margin-bottom: 14px; }
+  .dashboard-content { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 2fr) minmax(290px, 1fr); gap: 14px; }
+  .chores-panel { min-height: 0; display: flex; flex-direction: column; }
+  .chores-panel .columns { min-height: 0; flex: 1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .chores-panel .column { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+  .chores-panel .show-more { flex: none; margin: 8px auto 0; padding: 6px 14px; }
+  .dashboard-content .calendar-panel { height: 100%; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+}
+
+.calendar-agenda .agenda-day { border-top: 1px solid #e3e7ef; padding-top: 10px; margin-top: 10px; }
+.calendar-agenda .agenda-day h3 { font-size: .95rem; color: #44536b; margin: 0 0 8px; }
+.calendar-agenda .agenda-list { display: grid; grid-template-columns: 1fr; }
+.calendar-agenda .agenda-event { min-width: 0; }
