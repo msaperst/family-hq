@@ -90,8 +90,8 @@ test('both service failures keep the chore columns and calendar panel visible', 
   await page.route('**/api/chores?*', route => route.fulfill({ status: 503, body: '{}' }));
   await page.route('**/api/calendar/events?*', route => route.fulfill({ status: 503, body: '{}' }));
   await page.goto('/');
-  await expect(page.getByRole('region', { name: 'Porter' }).getByRole('alert')).toHaveText('Unable to load chores');
-  await expect(page.getByRole('region', { name: 'Miller' }).getByRole('alert')).toHaveText('Unable to load chores');
+  await expect(page.getByRole('region', { name: 'Chores' }).getByRole('alert')).toHaveText('Unable to load chores');
+  await expect(page.getByRole('region', { name: 'Porter' })).toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Family calendar' }).getByRole('alert')).toHaveText('Unable to load calendar');
   await expect(page.locator('.dashboard-header .connection')).toHaveCount(0);
 });

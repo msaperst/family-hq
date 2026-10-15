@@ -112,3 +112,28 @@ describe('chore API', () => {
     expect(again.columns[0].chores).toHaveLength(7);
   });
 });
+
+describe('seven-day chore window API', () => {
+  it('returns only its requested week, excluding earlier overdue items from later pages', async () => {
+    const db = openDatabase(':memory:');
+    const app = buildApp({ db });
+    try {
+      addChild(db, 'kid', 'Kid');
+      addChore(db, 'task', 'Task');
+      for (const [id, day] of [['overdue', '2026-10-13'], ['first', '2026-10-15'], ['second', '2026-10-22']]) {
+        saveOccurrence(db, { id, key: id, choreId: 'task', startsOn: day, dueOn: day, mode: 'individual', assignees: ['kid'] });
+      }
+      const first = await app.inject('/api/chores?date=2026-10-15&more=false');
+      const second = await app.inject('/api/chores?date=2026-10-22&window=true');
+      expect(first.statusCode).toBe(200);
+      expect(second.statusCode).toBe(200);
+      const initial = first.json() as DashboardResponse;
+      const next = second.json() as DashboardResponse;
+      expect(initial.through).toBe('2026-10-21');
+      expect(next.through).toBe('2026-10-28');
+      expect(initial.columns.flatMap(c => c.chores.map(ch => ch.id))).toEqual(['overdue', 'first']);
+      expect(next.columns.flatMap(c => c.chores.map(ch => ch.id))).toEqual(['second']);
+      expect((await app.inject('/api/chores?window=invalid')).statusCode).toBe(400);
+    } finally { await app.close(); db.close(); }
+  });
+});

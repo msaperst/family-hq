@@ -120,7 +120,7 @@ test('keeps overdue undo available across a dashboard refresh during the 30-seco
 
   // Force the same API refresh that periodic polling performs while still inside the undo window.
   await page.clock.fastForward(15_000);
-  const responses = page.waitForResponse(response => response.url().includes('/api/chores?more=true') && response.status() === 200);
+  const responses = page.waitForResponse(response => response.url().includes(/\/api\/chores\?date=\d{4}-\d{2}-\d{2}&more=false/) && response.status() === 200);
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
   await responses;
   await expect(checkbox).toBeChecked();

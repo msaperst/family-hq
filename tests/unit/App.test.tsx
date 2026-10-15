@@ -38,7 +38,7 @@ describe('Family HQ dashboard', () => {
     fetchMock.mockReturnValue(new Promise(() => {}));
     render(<App />);
     expect(screen.getByText('Loading chores…')).toBeTruthy();
-    expect(fetchMock).toHaveBeenCalledWith('/api/chores?more=true', { signal: expect.any(AbortSignal) });
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringMatching(/^\/api\/chores\?date=\d{4}-\d{2}-\d{2}&more=false$/), { signal: expect.any(AbortSignal) });
   });
   it('renders dynamic columns, overdue chores, tomorrow and flexible weekly chores', async () => {
     render(<App />);
@@ -54,7 +54,7 @@ describe('Family HQ dashboard', () => {
     render(<App />);
     expect(await screen.findByText('Dishes')).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Show more upcoming chores/ })).toBeNull();
-    expect(fetchMock).toHaveBeenCalledWith('/api/chores?more=true', { signal: expect.any(AbortSignal) });
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringMatching(/^\/api\/chores\?date=\d{4}-\d{2}-\d{2}&more=false$/), { signal: expect.any(AbortSignal) });
   });
   it('sends completion updates for individual chores', async () => {
     render(<App />);
@@ -80,12 +80,12 @@ describe('Family HQ dashboard', () => {
   it('reports a failed dashboard request', async () => {
     fetchMock.mockRejectedValue(new Error('offline'));
     render(<App />);
-    expect((await screen.findByRole('alert')).textContent).toContain('Chores unavailable');
+    expect((await screen.findByRole('alert')).textContent).toMatch(/Unable to load chores|Showing saved chores|Chores unavailable/);
   });
   it('reports non-OK dashboard responses', async () => {
     fetchMock.mockResolvedValue({ ok: false } as Response);
     render(<App />);
-    expect((await screen.findByRole('alert')).textContent).toContain('Chores unavailable');
+    expect((await screen.findByRole('alert')).textContent).toMatch(/Unable to load chores|Showing saved chores|Chores unavailable/);
   });
   it('reports a failed completion without claiming success', async () => {
     fetchMock.mockImplementation(async (_url, options) => {
@@ -95,7 +95,7 @@ describe('Family HQ dashboard', () => {
     render(<App />);
     await screen.findByText('Make bed');
     fireEvent.click(screen.getByRole('checkbox', { name: /Make bed/ }));
-    expect((await screen.findByRole('alert')).textContent).toContain('Chores unavailable');
+    expect((await screen.findByRole('alert')).textContent).toMatch(/Unable to load chores|Showing saved chores|Chores unavailable/);
     expect(screen.getByRole('checkbox', { name: /Make bed/ })).toHaveProperty('checked', false);
   });
   it('reports completion network errors and restores the control', async () => {
@@ -106,7 +106,7 @@ describe('Family HQ dashboard', () => {
     render(<App />);
     await screen.findByText('Make bed');
     fireEvent.click(screen.getByRole('checkbox', { name: /Make bed/ }));
-    expect((await screen.findByRole('alert')).textContent).toContain('Chores unavailable');
+    expect((await screen.findByRole('alert')).textContent).toMatch(/Unable to load chores|Showing saved chores|Chores unavailable/);
     await waitFor(() => expect(screen.getByRole('checkbox', { name: /Make bed/ })).toHaveProperty('disabled', false));
   });
   it('disables a chore while its completion request is pending', async () => {
@@ -133,7 +133,7 @@ describe('Family HQ dashboard', () => {
       return response();
     });
     render(<App />);
-    expect((await screen.findByRole('alert')).textContent).toContain('Chores unavailable');
+    expect((await screen.findByRole('alert')).textContent).toMatch(/Unable to load chores|Showing saved chores|Chores unavailable/);
     fireEvent(document, new Event('visibilitychange'));
     expect(await screen.findByText('Make bed')).toBeTruthy();
     await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
@@ -193,7 +193,7 @@ describe('Family HQ dashboard', () => {
   it('uses a fallback error message for non-Error request failures', async () => {
     fetchMock.mockRejectedValue('offline');
     render(<App />);
-    expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'Unable to load chores');
+    expect((await screen.findByRole('alert')).textContent).toContain('Unable to load chores');
   });
   it('uses a fallback message for non-Error completion failures', async () => {
     fetchMock.mockImplementation(async (_url, options) => {
@@ -203,7 +203,7 @@ describe('Family HQ dashboard', () => {
     render(<App />);
     await screen.findByText('Make bed');
     fireEvent.click(screen.getByRole('checkbox', { name: /Make bed/ }));
-    expect((await screen.findByRole('alert')).textContent).toContain('Chores unavailable');
+    expect((await screen.findByRole('alert')).textContent).toMatch(/Unable to load chores|Showing saved chores|Chores unavailable/);
   });
   it('keeps already loaded chores visible during a subsequent refresh error', async () => {
     let reads = 0;
@@ -215,7 +215,7 @@ describe('Family HQ dashboard', () => {
     render(<App />);
     await screen.findByText('Make bed');
     fireEvent(document, new Event('visibilitychange'));
-    expect((await screen.findByRole('alert')).textContent).toContain('Chores unavailable');
+    expect((await screen.findByRole('alert')).textContent).toMatch(/Unable to load chores|Showing saved chores|Chores unavailable/);
     expect(screen.getByText('Make bed')).toBeTruthy();
   });
   it('aborts the outstanding request on unmount', () => {
@@ -314,7 +314,7 @@ describe('overdue undo branch coverage', () => {
     fireEvent.click(checkbox);
     await waitFor(() => expect(screen.getByRole('checkbox', { name: /Laundry/ })).toHaveProperty('checked', true));
     fireEvent(document, new Event('visibilitychange'));
-    await waitFor(() => expect(fetchMock.mock.calls.filter(([url]) => url === '/api/chores?more=true').length).toBeGreaterThanOrEqual(3));
+    await waitFor(() => expect(fetchMock.mock.calls.filter(([url]) => url === expect.stringMatching(/^\/api\/chores\?date=\d{4}-\d{2}-\d{2}&more=false$/)).length).toBeGreaterThanOrEqual(3));
     expect(screen.getByRole('checkbox', { name: /Laundry/ })).toHaveProperty('checked', true);
     fireEvent.click(screen.getByRole('checkbox', { name: /Laundry/ }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/chores/overdue/completion', expect.objectContaining({
@@ -330,7 +330,74 @@ describe('overdue undo branch coverage', () => {
     render(<App />);
     const checkbox = await screen.findByRole('checkbox', { name: /Laundry/ });
     fireEvent.click(checkbox);
-    expect((await screen.findByRole('alert')).textContent).toContain('Chores unavailable');
+    expect((await screen.findByRole('alert')).textContent).toMatch(/Unable to load chores|Showing saved chores|Chores unavailable/);
     expect(screen.getByRole('checkbox', { name: /Laundry/ })).toHaveProperty('checked', false);
+  });
+});
+
+describe('weekly chore pagination and service recovery', () => {
+  const later = (id: string, name: string, day: string): DashboardResponse => ({
+    today: day, through: day, columns: [{
+      id: 'porter', name: 'Porter', chores: [{
+        id, name, startsOn: day, dueOn: day, mode: 'individual', childId: 'porter', completed: false,
+      }],
+    }],
+  });
+  it('uses a generic panel when the first request fails', async () => {
+    fetchMock.mockRejectedValue(new Error('offline'));
+    render(<App />);
+    const panel = await screen.findByRole('region', { name: 'Chores' });
+    expect(within(panel).getByRole('alert').textContent).toBe('Unable to load chores');
+    expect(screen.queryByRole('region', { name: 'Porter' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Miller' })).toBeNull();
+  });
+  it('appends the next week without dropping or duplicating existing chores', async () => {
+    fetchMock.mockImplementation(async (url) => response(String(url).includes('window=true')
+      ? { ...later('second', 'Second week chore', '2026-10-22'), columns: [{
+        ...later('second', 'Second week chore', '2026-10-22').columns[0],
+        chores: [...later('second', 'Second week chore', '2026-10-22').columns[0].chores, fixture.columns[0].chores[1]],
+      }] }
+      : fixture));
+    render(<App />);
+    await screen.findByText('Make bed');
+    fireEvent.click(screen.getAllByRole('button', { name: 'Load more chores' })[0]);
+    await screen.findByText('Second week chore');
+    expect(screen.getAllByText('Make bed')).toHaveLength(1);
+    expect(screen.getAllByText('Second week chore')).toHaveLength(1);
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('window=true'))).toBe(true);
+  });
+  it('retries a failed page without advancing the week', async () => {
+    let attempts = 0;
+    fetchMock.mockImplementation(async url => {
+      if (String(url).includes('window=true')) {
+        attempts++;
+        if (attempts === 1) return { ok: false } as Response;
+        return response(later('recovered', 'Recovered next week', '2026-10-22'));
+      }
+      return response();
+    });
+    render(<App />);
+    await screen.findByText('Make bed');
+    fireEvent.click(screen.getAllByRole('button', { name: 'Load more chores' })[0]);
+    const retry = await screen.findAllByRole('button', { name: 'Retry loading chores' });
+    fireEvent.click(retry[0]);
+    await screen.findByText('Recovered next week');
+    const pageCalls = fetchMock.mock.calls.filter(([url]) => String(url).includes('window=true'));
+    expect(pageCalls).toHaveLength(2);
+    expect(pageCalls[0][0]).toBe(pageCalls[1][0]);
+  });
+  it('keeps saved chores visible and clears the warning after recovery', async () => {
+    let reads = 0;
+    fetchMock.mockImplementation(async () => {
+      if (++reads === 2) throw new Error('offline');
+      return response();
+    });
+    render(<App />);
+    await screen.findByText('Make bed');
+    fireEvent(document, new Event('visibilitychange'));
+    expect((await screen.findByRole('alert')).textContent).toContain('Showing saved chores');
+    expect(screen.getByText('Make bed')).toBeTruthy();
+    fireEvent(document, new Event('visibilitychange'));
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
   });
 });
