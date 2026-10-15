@@ -12,6 +12,16 @@ const weekdayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 function localDate(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Phoenix', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 }
+function scheduleFrequencyLabel(schedule: Schedule): string {
+  if (schedule.frequency !== 'weekly') return schedule.frequency.replaceAll('_', ' ');
+  if (schedule.weekdays.length === 0) return 'Weekly · due Sunday';
+  return 'Weekly · ' + schedule.weekdays.map(day => weekdayNames[day]).join(', ');
+}
+function toggleAssignee(previous: string[], childId: string, individual: boolean): string[] {
+  if (individual) return [childId];
+  if (previous.includes(childId)) return previous.filter(id => id !== childId);
+  return [...previous, childId];
+}
 export function ParentSettings() {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [children, setChildren] = useState<Child[]>([]);
@@ -144,7 +154,7 @@ export function ParentSettings() {
       {schedules.length === 0 && <p>No schedules yet.</p>}
       <ul className="schedule-list">{schedules.map(schedule => <li key={schedule.id}>
         <div><strong>{schedule.name}</strong>
-          <p>{schedule.frequency === 'weekly' && schedule.weekdays.length === 0 ? 'Weekly · due Sunday' : schedule.frequency === 'weekly' ? 'Weekly · ' + schedule.weekdays.map(day => weekdayNames[day]).join(', ') : schedule.frequency.replaceAll('_', ' ')} · {schedule.assignees.map(id => children.find(child => child.id === id)?.name ?? id).join(', ')} · {schedule.paused ? 'Paused' : 'Active'}</p>
+          <p>{scheduleFrequencyLabel(schedule)} · {schedule.assignees.map(id => children.find(child => child.id === id)?.name ?? id).join(', ')} · {schedule.paused ? 'Paused' : 'Active'}</p>
         </div>
         <div className="schedule-actions"><button type="button" disabled={busy} onClick={() => edit(schedule)}>Edit</button>
         <button type="button" disabled={busy} onClick={() => void pause(schedule)}>{schedule.paused ? 'Resume' : 'Pause'}</button></div>
@@ -154,7 +164,7 @@ export function ParentSettings() {
       <h2>{editingId ? 'Edit chore' : 'Add a chore'}</h2>
       <form onSubmit={event => void create(event)} className="settings-form">
         <label>Chore name<input required maxLength={120} value={name} onChange={event => setName(event.target.value)} /></label>
-        <label>Who completes it?
+        <label>Who completes it?{' '}
           <select value={mode} onChange={event => { setMode(event.target.value as typeof mode); setRotation('none'); setAssignees([]); }}>
             <option value="individual">One child</option><option value="either">Either child</option><option value="each">Each child</option>
           </select>
@@ -163,23 +173,22 @@ export function ParentSettings() {
           {children.map(child => <label key={child.id} className="settings-checkbox">
             <input type={mode === 'individual' && rotation === 'none' ? 'radio' : 'checkbox'} name="assignee"
               checked={assignees.includes(child.id)}
-              onChange={() => setAssignees(previous => mode === 'individual' && rotation === 'none' ? [child.id] :
-                previous.includes(child.id) ? previous.filter(id => id !== child.id) : [...previous, child.id])} />
+              onChange={() => setAssignees(previous => toggleAssignee(previous, child.id, mode === 'individual' && rotation === 'none'))} />
             {child.name}
           </label>)}
         </fieldset>
-        {mode === 'individual' && <label>Rotate assignment
+        {mode === 'individual' && <label>Rotate assignment{' '}
           <select value={rotation} onChange={event => { const next = event.target.value as typeof rotation; setRotation(next); if (next === 'none') setAssignees(previous => previous.slice(0, 1)); }}>
             <option value="none">No rotation</option><option value="daily">Daily</option><option value="weekly">Weekly</option>
           </select>
         </label>}
-        <label>Repeat
+        <label>Repeat{' '}
           <select value={frequency} onChange={event => { const next = event.target.value as typeof frequency; setFrequency(next); if (next === 'weekly') setWeeklyFlexible(weekdays.length === 0); }}>
             <option value="once">Once</option><option value="daily">Daily</option><option value="weekly">Weekly</option>
             <option value="interval_days">Every N days</option><option value="interval_weeks">Every N weeks</option>
           </select>
         </label>
-        {(frequency === 'interval_days' || frequency === 'interval_weeks') && <label>Repeat interval
+        {(frequency === 'interval_days' || frequency === 'interval_weeks') && <label>Repeat interval{' '}
           <input type="number" min={1} max={365} value={intervalCount} onChange={event => setIntervalCount(Number(event.target.value))} />
         </label>}
         {frequency === 'weekly' && <fieldset><legend>Weekly deadline</legend>
@@ -192,7 +201,7 @@ export function ParentSettings() {
           <fieldset><legend>Days of week {frequency === 'weekly' ? '(choose at least one)' : '(optional)'}</legend>
             {weekdayNames.map((day, index) => <label key={day} className="settings-checkbox">
               <input type="checkbox" checked={weekdays.includes(index)}
-                onChange={() => setWeekdays(previous => previous.includes(index) ? previous.filter(d => d !== index) : [...previous, index].sort())} />{day}
+                onChange={() => setWeekdays(previous => previous.includes(index) ? previous.filter(d => d !== index) : [...previous, index].sort((a, b) => a - b))} />{day}
             </label>)}
           </fieldset>}
         <label>Start date<input type="date" required value={anchorDate} onChange={event => setAnchorDate(event.target.value)} /></label>
