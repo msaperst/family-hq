@@ -108,10 +108,10 @@ export function App() {
       <div><h1>Family HQ</h1><p>{new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', dateStyle: 'full' }).format(new Date(today + 'T00:00:00Z'))}</p></div>
       <span className="connection">{error ? 'Connection issue' : 'Connected'}</span>
     </header>
-    <CalendarPanel today={today} />
     {error && <p role="alert" className="error">{error}</p>}
     {!data && !error && <p>Loading chores…</p>}
     {data?.columns.length === 0 && <p className="empty">No chores scheduled. Everyone's caught up!</p>}
+    <div className="dashboard-content"><div className="chores-panel">
     {data && <div className="columns">
       {data.columns.map(column => {
         const retained = undoEntries.filter(entry => entry.columnId === column.id && entry.expiresAt > Date.now() && !column.chores.some(chore => chore.id === entry.chore.id));
@@ -138,5 +138,6 @@ export function App() {
       </section>; })}
     </div>}
     <button type="button" className="show-more" onClick={() => setMore(value => !value)}>{more ? 'Hide upcoming chores' : 'Show more upcoming chores'}</button>
+    </div><CalendarPanel today={today} /></div>
   </main>;
 }

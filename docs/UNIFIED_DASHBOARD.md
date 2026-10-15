@@ -1,7 +1,9 @@
-# Unified calendar and chores dashboard (#12)
+# Rolling agenda layout (#12)
 
-The main Family HQ page displays the upcoming seven Phoenix-local calendar days above the existing interactive chore columns. The calendar reads `GET /api/calendar/events` (issue #11) and never sends Google credentials to the browser. The calendar refreshes every five minutes and on tab visibility changes; chores continue refreshing every 30 seconds.
+The main Family HQ dashboard prioritizes the existing interactive chore columns. On wide landscape screens the chores use 70% of the content area, with a compact calendar agenda in the remaining 30%. On portrait tablets the agenda appears above two chore columns; phones stack chore columns.
 
-The server may return stale cached calendar events (`stale: true`), which the UI labels. If the calendar API is unavailable, the UI shows a nonblocking message and leaves the chore controls usable. Timed events are formatted in `America/Phoenix`; all-day events use Google's exclusive end date. A week crossing a month or year works without special configuration.
+The compact agenda displays the next five relevant events, hides timed events at their end time, keeps in-progress events, and retains all-day events until their exclusive end date in America/Phoenix. Event visibility recalculates every minute locally without extra API calls. The Google Calendar API is fetched every five minutes and on tab visibility changes. The Full week control expands a seven-day calendar; Compact view returns to the agenda.
 
-The layout uses seven columns on wide screens and stacked days on narrow tablets/phones. Tests cover UTC-to-Phoenix conversion, multi-day events, and midnight boundaries. Run `npm run typecheck`, `npm run test:unit`, `npm run test:coverage`, and the existing Playwright suite before merging. iPad-sized Playwright coverage is a follow-up within this issue.
+The calendar API can be unavailable without disabling chores. A stale API response is labeled. Event locations are truncated in compact mode, with the full value available as a title.
+
+Run typecheck, unit/integration tests, build, and Playwright checks locally before a PR. Add iPad-sized viewport coverage before merging issue #12.
