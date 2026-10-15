@@ -46,7 +46,6 @@ const groups = [
 ] as const;
 export function App() {
   const [data, setData] = useState<DashboardResponse | null>(null);
-  const [more, setMore] = useState(false);
   const [error, setError] = useState('');
   const [pending, setPending] = useState<string[]>([]);
   const [today, setToday] = useState(phoenixDate);
@@ -59,14 +58,14 @@ export function App() {
   }, [undoEntries]);
   const refresh = useCallback(async (signal?: AbortSignal) => {
     try {
-      const response = await fetch(`/api/chores?more=${more}`, { signal });
+      const response = await fetch(`/api/chores?more=true`, { signal });
       if (!response.ok) throw new Error('Unable to load chores');
       const result = await response.json() as DashboardResponse;
       if (!signal?.aborted) { setData(result); setError(''); setToday(result.today); }
     } catch (cause) {
       if (!signal?.aborted) setError(cause instanceof Error ? cause.message : 'Unable to load chores');
     }
-  }, [more]);
+  }, []);
   useEffect(() => {
     const controller = new AbortController();
     void refresh(controller.signal);
@@ -119,8 +118,7 @@ export function App() {
         return <section className="column" key={column.id} aria-label={column.name}>
         <div className="column-heading"><h2>{column.name}</h2><p>{choresForColumn.filter(chore => chore.completed).length} completed</p></div>
         {groups.map(group => {
-          if (group.id === 'upcoming' && !more) return null;
-          const chores = choresForColumn.filter(chore => (more || visibleByDefault(chore, today)) && (undoEntries.some(entry => entry.chore.id === chore.id) ? 'overdue' : sectionFor(chore, today)) === group.id);
+          const chores = choresForColumn.filter(chore => (undoEntries.some(entry => entry.chore.id === chore.id) ? 'overdue' : sectionFor(chore, today)) === group.id);
           if (!chores.length) return null;
           return <section key={group.id} className="chore-group">
             <h3 className={group.id === 'overdue' ? 'overdue' : ''}>{group.title}</h3>
@@ -133,11 +131,8 @@ export function App() {
             })}
           </section>;
         })}
-        {!more && choresForColumn.every(chore => !visibleByDefault(chore, today)) &&
-          <p className="upcoming-hint">Chores coming up. Select “Show more upcoming chores” to see them.</p>}
       </section>; })}
     </div>}
-    <button type="button" className="show-more" onClick={() => setMore(value => !value)}>{more ? 'Hide upcoming chores' : 'Show more upcoming chores'}</button>
     </div><CalendarPanel today={today} /></div>
   </main>;
 }

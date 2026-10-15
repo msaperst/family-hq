@@ -101,3 +101,20 @@ h1 { font-size: clamp(1.8rem, 4vw, 2.5rem); margin: 0; }
 .calendar-agenda .agenda-day h3 { font-size: .95rem; color: #44536b; margin: 0 0 8px; }
 .calendar-agenda .agenda-list { display: grid; grid-template-columns: 1fr; }
 .calendar-agenda .agenda-event { min-width: 0; }
+
+/* Kitchen touch display: aligned scrolling panels, no chore expansion control. */
+.dashboard-content .column-heading { position: sticky; top: -16px; z-index: 1; background: #e9edf4; border-radius: 12px 12px 0 0; }
+@media (min-width: 951px) and (orientation: landscape) {
+  .dashboard-content { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+  .chores-panel .columns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dashboard-content .calendar-heading { position: sticky; top: -18px; z-index: 1; background: white; padding: 8px 0 12px; }
+}
+@media (max-width: 950px), (orientation: portrait) {
+  .dashboard-content { display: flex; flex-direction: column; }
+  .dashboard-content .calendar-panel { order: 0; width: 100%; }
+  .chores-panel { order: -1; width: 100%; }
+  .chores-panel .columns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 540px) {
+  .chores-panel .columns { grid-template-columns: 1fr; }
+}
