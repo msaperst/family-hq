@@ -95,7 +95,7 @@ describe('Family HQ dashboard', () => {
     render(<App />);
     await screen.findByText('Make bed');
     fireEvent.click(screen.getByRole('checkbox', { name: /Make bed/ }));
-    expect((await screen.findByRole('alert')).textContent).toMatch(/Could not save completion|Network lost/);
+    expect((await within(screen.getByRole('region', { name: 'Porter' })).findByRole('alert')).textContent).toMatch(/Could not save completion|Network lost/);
     expect(screen.getByRole('checkbox', { name: /Make bed/ })).toHaveProperty('checked', false);
   });
   it('reports completion network errors and restores the control', async () => {
@@ -106,7 +106,7 @@ describe('Family HQ dashboard', () => {
     render(<App />);
     await screen.findByText('Make bed');
     fireEvent.click(screen.getByRole('checkbox', { name: /Make bed/ }));
-    expect((await screen.findByRole('alert')).textContent).toMatch(/Could not save completion|Network lost/);
+    expect((await within(screen.getByRole('region', { name: 'Porter' })).findByRole('alert')).textContent).toMatch(/Could not save completion|Network lost/);
     await waitFor(() => expect(screen.getByRole('checkbox', { name: /Make bed/ })).toHaveProperty('disabled', false));
   });
   it('disables a chore while its completion request is pending', async () => {
@@ -203,7 +203,7 @@ describe('Family HQ dashboard', () => {
     render(<App />);
     await screen.findByText('Make bed');
     fireEvent.click(screen.getByRole('checkbox', { name: /Make bed/ }));
-    expect((await screen.findByRole('alert')).textContent).toMatch(/Could not save completion|Network lost/);
+    expect((await within(screen.getByRole('region', { name: 'Porter' })).findByRole('alert')).textContent).toMatch(/Could not save completion|Network lost/);
   });
   it('keeps already loaded chores visible during a subsequent refresh error', async () => {
     let reads = 0;
@@ -215,7 +215,7 @@ describe('Family HQ dashboard', () => {
     render(<App />);
     await screen.findByText('Make bed');
     fireEvent(document, new Event('visibilitychange'));
-    expect((await screen.findByRole('alert')).textContent).toMatch(/Unable to load chores|Showing saved chores|Chores unavailable/);
+    expect((await within(screen.getByRole('region', { name: 'Porter' })).findByRole('alert')).textContent).toMatch(/Unable to load chores|Showing saved chores|Chores unavailable/);
     expect(screen.getByText('Make bed')).toBeTruthy();
   });
   it('aborts the outstanding request on unmount', () => {
@@ -330,7 +330,7 @@ describe('overdue undo branch coverage', () => {
     render(<App />);
     const checkbox = await screen.findByRole('checkbox', { name: /Laundry/ });
     fireEvent.click(checkbox);
-    expect((await screen.findByRole('alert')).textContent).toMatch(/Could not save completion|Network lost/);
+    expect((await within(screen.getByRole('region', { name: 'Porter' })).findByRole('alert')).textContent).toMatch(/Could not save completion|Network lost/);
     expect(screen.getByRole('checkbox', { name: /Laundry/ })).toHaveProperty('checked', false);
   });
 });
@@ -395,9 +395,9 @@ describe('weekly chore pagination and service recovery', () => {
     render(<App />);
     await screen.findByText('Make bed');
     fireEvent(document, new Event('visibilitychange'));
-    expect((await screen.findByRole('alert')).textContent).toContain('Showing saved chores');
+    expect((await within(screen.getByRole('region', { name: 'Porter' })).findByRole('alert')).textContent).toContain('Showing saved chores');
     expect(screen.getByText('Make bed')).toBeTruthy();
     fireEvent(document, new Event('visibilitychange'));
-    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+    await waitFor(() => expect(within(screen.getByRole('region', { name: 'Porter' })).queryByRole('alert')).toBeNull());
   });
 });
