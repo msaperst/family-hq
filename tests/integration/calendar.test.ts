@@ -40,4 +40,70 @@ describe('Google Calendar read-only integration', () => {
       expect((await app.inject('/api/calendar/events?from=2026-10-15&to=2026-10-20')).statusCode).toBe(503);
     } finally { await app.close(); }
   });
+  it('accepts complete configuration and rejects blank secrets', () => {
+    expect(calendarSettings({
+      FAMILY_HQ_GOOGLE_CALENDAR_ID: settings.calendarId,
+      FAMILY_HQ_GOOGLE_CLIENT_ID: settings.clientId,
+      FAMILY_HQ_GOOGLE_CLIENT_SECRET: settings.clientSecret,
+      FAMILY_HQ_GOOGLE_REFRESH_TOKEN: settings.refreshToken,
+    })).toEqual(settings);
+    expect(() => calendarSettings({ FAMILY_HQ_GOOGLE_CLIENT_ID: '  ' })).toThrow('Incomplete');
+  });
+  it('ignores malformed event entries and supplies missing display fields', () => {
+    expect(normalizeEvent({ id: 'x', start: { date: '2026-10-15' }, end: {} })).toBeNull();
+    expect(normalizeEvent({ id: 'x', start: { dateTime: '2026-10-15T10:00:00Z' }, end: {} })).toBeNull();
+    expect(normalizeEvent({ id: 'x', start: { date: '2026-10-15' }, end: { date: '2026-10-16' } }))
+      .toMatchObject({ title: '(Untitled)', location: null });
+  });
+  it.each([401, 403, 429, 500])('rejects Google events HTTP %i without cached data', async status => {
+    const request = vi.fn(async (url: string | URL) =>
+      new Response(String(url).includes('oauth2.googleapis.com')
+        ? JSON.stringify({ access_token: 'access' }) : 'failure',
+      { status: String(url).includes('oauth2.googleapis.com') ? 200 : status }));
+    const calendar = new GoogleCalendar(settings, request as typeof fetch);
+    await expect(calendar.events('start', 'end')).rejects.toThrow('events request failed');
+  });
+  it('rejects unsuccessful OAuth refresh and missing access tokens', async () => {
+    const unauthorized = new GoogleCalendar(settings, vi.fn(async () => new Response('denied', { status: 401 })) as typeof fetch);
+    await expect(unauthorized.events('start', 'end')).rejects.toThrow('authorization failed');
+    const missingToken = new GoogleCalendar(settings, vi.fn(async () =>
+      new Response(JSON.stringify({ expires_in: 3600 }), { status: 200 })) as typeof fetch);
+    await expect(missingToken.events('start', 'end')).rejects.toThrow('token missing');
+  });
+  it('rejects pagination overflow without publishing a partial cache', async () => {
+    const request = vi.fn(async (url: string | URL) =>
+      new Response(JSON.stringify(String(url).includes('oauth2.googleapis.com')
+        ? { access_token: 'access' } : { items: [], nextPageToken: 'again' }), { status: 200 }));
+    const calendar = new GoogleCalendar(settings, request as typeof fetch);
+    await expect(calendar.events('start', 'end')).rejects.toThrow('pagination limit exceeded');
+    expect(request).toHaveBeenCalledTimes(21);
+  });
+  it('returns a sanitized 503 from the HTTP endpoint when Google fails', async () => {
+    const request = vi.fn(async (url: string | URL) =>
+      new Response(String(url).includes('oauth2.googleapis.com')
+        ? JSON.stringify({ access_token: 'access' }) : 'secret diagnostic',
+      { status: String(url).includes('oauth2.googleapis.com') ? 200 : 503 }));
+    const app = buildApp();
+    registerCalendarApi(app, new GoogleCalendar(settings, request as typeof fetch));
+    try {
+      const response = await app.inject('/api/calendar/events?from=2026-10-15&to=2026-10-20');
+      expect(response.statusCode).toBe(503);
+      expect(response.json()).toEqual({ error: 'Calendar temporarily unavailable' });
+      expect(response.body).not.toContain('secret diagnostic');
+    } finally { await app.close(); }
+  });
+  it.each([
+    'from=2026-10-15&to=2026-10-15',
+    'from=2026-10-16&to=2026-10-15',
+    'from=2026-02-30&to=2026-10-20',
+    'from=2026-10-15&to=2027-02-01',
+    'from=2026-10-15',
+  ])('rejects invalid date range %s', async query => {
+    const app = buildApp();
+    registerCalendarApi(app, null);
+    try {
+      expect((await app.inject('/api/calendar/events?' + query)).statusCode).toBe(400);
+    } finally { await app.close(); }
+  });
+
 });
