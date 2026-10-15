@@ -95,7 +95,7 @@ describe('Family HQ dashboard', () => {
     render(<App />);
     await screen.findByText('Make bed');
     fireEvent.click(screen.getByRole('checkbox', { name: /Make bed/ }));
-    expect((await screen.findByRole('alert')).textContent).toMatch(/Unable to load chores|Showing saved chores|Chores unavailable/);
+    expect((await screen.findByRole('alert')).textContent).toMatch(/Could not save completion|Network lost/);
     expect(screen.getByRole('checkbox', { name: /Make bed/ })).toHaveProperty('checked', false);
   });
   it('reports completion network errors and restores the control', async () => {
@@ -106,7 +106,7 @@ describe('Family HQ dashboard', () => {
     render(<App />);
     await screen.findByText('Make bed');
     fireEvent.click(screen.getByRole('checkbox', { name: /Make bed/ }));
-    expect((await screen.findByRole('alert')).textContent).toMatch(/Unable to load chores|Showing saved chores|Chores unavailable/);
+    expect((await screen.findByRole('alert')).textContent).toMatch(/Could not save completion|Network lost/);
     await waitFor(() => expect(screen.getByRole('checkbox', { name: /Make bed/ })).toHaveProperty('disabled', false));
   });
   it('disables a chore while its completion request is pending', async () => {
@@ -203,7 +203,7 @@ describe('Family HQ dashboard', () => {
     render(<App />);
     await screen.findByText('Make bed');
     fireEvent.click(screen.getByRole('checkbox', { name: /Make bed/ }));
-    expect((await screen.findByRole('alert')).textContent).toMatch(/Unable to load chores|Showing saved chores|Chores unavailable/);
+    expect((await screen.findByRole('alert')).textContent).toMatch(/Could not save completion|Network lost/);
   });
   it('keeps already loaded chores visible during a subsequent refresh error', async () => {
     let reads = 0;
@@ -314,7 +314,7 @@ describe('overdue undo branch coverage', () => {
     fireEvent.click(checkbox);
     await waitFor(() => expect(screen.getByRole('checkbox', { name: /Laundry/ })).toHaveProperty('checked', true));
     fireEvent(document, new Event('visibilitychange'));
-    await waitFor(() => expect(fetchMock.mock.calls.filter(([url]) => url === expect.stringMatching(/^\/api\/chores\?date=\d{4}-\d{2}-\d{2}&more=false$/)).length).toBeGreaterThanOrEqual(3));
+    await waitFor(() => expect(fetchMock.mock.calls.filter(([url]) => typeof url === 'string' && url.startsWith('/api/chores?date=') && url.endsWith('&more=false')).length).toBeGreaterThanOrEqual(3));
     expect(screen.getByRole('checkbox', { name: /Laundry/ })).toHaveProperty('checked', true);
     fireEvent.click(screen.getByRole('checkbox', { name: /Laundry/ }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/chores/overdue/completion', expect.objectContaining({
@@ -330,7 +330,7 @@ describe('overdue undo branch coverage', () => {
     render(<App />);
     const checkbox = await screen.findByRole('checkbox', { name: /Laundry/ });
     fireEvent.click(checkbox);
-    expect((await screen.findByRole('alert')).textContent).toMatch(/Unable to load chores|Showing saved chores|Chores unavailable/);
+    expect((await screen.findByRole('alert')).textContent).toMatch(/Could not save completion|Network lost/);
     expect(screen.getByRole('checkbox', { name: /Laundry/ })).toHaveProperty('checked', false);
   });
 });

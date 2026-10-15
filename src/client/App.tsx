@@ -47,6 +47,7 @@ const groups = [
 export function App() {
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [error, setError] = useState('');
+  const [completionError, setCompletionError] = useState('');
   const [loadedWeeks, setLoadedWeeks] = useState(1);
   const [loadingMore, setLoadingMore] = useState(false);
   const [moreError, setMoreError] = useState(false);
@@ -101,6 +102,7 @@ export function App() {
   async function toggle(chore: DashboardChore) {
     const key = chore.id + ':' + (chore.childId ?? '');
     if (pending.includes(key)) return;
+    setCompletionError('');
     setPending(previous => [...previous, key]);
     try {
       const response = await fetch(`/api/chores/${encodeURIComponent(chore.id)}/completion`, {
@@ -121,7 +123,7 @@ export function App() {
       }
       await refresh();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not save completion');
+      setCompletionError(cause instanceof Error ? cause.message : 'Could not save completion');
     } finally {
       setPending(previous => previous.filter(item => item !== key));
     }
@@ -142,6 +144,7 @@ export function App() {
         <div className="column-heading"><h2>{column.name}</h2><p>{choresForColumn.filter(chore => chore.completed).length} completed</p></div>
         <div className="column-body" onScroll={onChoreScroll}>
         {error && <p role="alert" className="panel-error">{data ? "Showing saved chores — unable to refresh" : "Unable to load chores"}</p>}
+        {completionError && <p role="alert" className="panel-error">{completionError}</p>}
         {groups.map(group => {
           const chores = choresForColumn.filter(chore => (undoEntries.some(entry => entry.chore.id === chore.id) ? 'overdue' : sectionFor(chore, today)) === group.id);
           if (!chores.length) return null;
