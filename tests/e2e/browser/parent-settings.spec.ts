@@ -9,7 +9,7 @@ test('creates a recurring chore and displays it on the dashboard', async ({ page
   await page.getByRole('button', { name: 'Add chore' }).click();
   await expect(page.getByText('Playwright new chore').first()).toBeVisible();
   await page.goto('/');
-  await expect(page.getByRole('region', { name: 'Porter' }).getByText('Playwright new chore')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Porter' }).getByText('Playwright new chore').first()).toBeVisible();
 });
 
 test('edits and pauses a recurring chore without changing completed history', async ({ page }) => {
@@ -36,8 +36,8 @@ test('skips and restores one occurrence without changing the weekly rule', async
   await page.locator('.schedule-list li').filter({ hasText: 'Clean bedroom' }).first()
     .getByRole('button', { name: 'Edit' }).click();
   const preview = page.getByRole('heading', { name: 'Upcoming occurrences' }).locator('..');
-  await expect(preview.getByRole('button', { name: 'Exception' }).first()).toBeVisible();
-  await preview.getByRole('button', { name: 'Exception' }).last().click();
+  await expect(preview.getByRole('button', { name: 'Exception', exact: true }).first()).toBeVisible();
+  await preview.getByRole('button', { name: 'Exception', exact: true }).last().click();
   await page.getByRole('button', { name: 'Save exception' }).click();
   await expect(page.getByText(/: skip/)).toBeVisible();
   await page.getByRole('button', { name: 'Remove' }).click();
@@ -70,7 +70,7 @@ test('exception removal stays disabled while a delete is pending', async ({ page
   await page.locator('.schedule-list li').filter({ hasText: 'Clean bedroom' }).first()
     .getByRole('button', { name: 'Edit' }).click();
   const preview = page.getByRole('heading', { name: 'Upcoming occurrences' }).locator('..');
-  await preview.getByRole('button', { name: 'Exception' }).last().click();
+  await preview.getByRole('button', { name: 'Exception', exact: true }).last().click();
   await page.getByRole('button', { name: 'Save exception' }).click();
   const remove = page.getByRole('button', { name: 'Remove' });
   await expect(remove).toBeVisible();
