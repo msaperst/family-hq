@@ -95,10 +95,9 @@ export function ParentSettings() {
   }
   async function saveException(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!editingId) return;
     await runMutation(async () => {
     try {
-      const response = await fetch('/api/parent/schedules/' + encodeURIComponent(editingId) +
+      const response = await fetch('/api/parent/schedules/' + encodeURIComponent(editingId!) +
         '/exceptions/' + encodeURIComponent(exceptionDate), {
         method: 'PUT', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ action: exceptionAction,
@@ -106,7 +105,7 @@ export function ParentSettings() {
           ...(exceptionAction === 'reassign' ? { childId: exceptionChild } : {}) }),
       });
       if (!response.ok) throw new Error((await response.json() as { error?: string }).error ?? 'Could not save exception');
-      await loadOccurrences(editingId);
+      await loadOccurrences(editingId!);
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save exception'); }
     });
   }
@@ -114,10 +113,10 @@ export function ParentSettings() {
     if (!editingId) return;
     await runMutation(async () => {
     try {
-      const response = await fetch('/api/parent/schedules/' + encodeURIComponent(editingId) +
+      const response = await fetch('/api/parent/schedules/' + encodeURIComponent(editingId!) +
         '/exceptions/' + encodeURIComponent(date), { method: 'DELETE' });
       if (!response.ok) throw new Error('Could not remove exception');
-      await loadOccurrences(editingId);
+      await loadOccurrences(editingId!);
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not remove exception'); }
     });
   }
