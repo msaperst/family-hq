@@ -46,7 +46,7 @@ export function dashboard(db: DatabaseSync, today: string, extraDays = 0): Dashb
     if (isShared && seenShared.has(row.id)) continue;
     if (isShared) seenShared.add(row.id);
     const target = isShared ? shared : columns.get(row.child_id);
-    if (!target) continue;
+    // SQL joins active children, which are also the keys of columns.
     target.chores.push({
       id: row.id, name: row.name, startsOn: row.starts_on, dueOn: row.due_on,
       mode: row.mode, childId: isShared ? null : row.child_id, completed: row.completed === 1,

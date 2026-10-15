@@ -190,7 +190,7 @@ export function ParentSettings() {
           <label className="settings-checkbox"><input type="radio" name="weeklyDeadline" checked={weeklyFlexible}
             onChange={() => { setWeeklyFlexible(true); setWeekdays([]); }} />Anytime during the week, due Sunday</label>
           <label className="settings-checkbox"><input type="radio" name="weeklyDeadline" checked={!weeklyFlexible}
-            onChange={() => { setWeeklyFlexible(false); if (weekdays.length === 0) setWeekdays([6]); }} />On selected day(s)</label>
+            onChange={() => { setWeeklyFlexible(false); setWeekdays([6]); }} />On selected day(s)</label>
         </fieldset>}
         {(frequency === 'daily' || (frequency === 'weekly' && !weeklyFlexible) || frequency === 'interval_days' || frequency === 'interval_weeks') &&
           <fieldset><legend>Days of week {frequency === 'weekly' ? '(choose at least one)' : '(optional)'}</legend>
