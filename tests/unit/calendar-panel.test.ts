@@ -11,6 +11,13 @@ describe('family calendar Phoenix date handling', () => {
     expect(occursOn(evening, '2026-10-15')).toBe(true);
     expect(occursOn(evening, '2026-10-16')).toBe(false);
   });
+  it('returns the calendar day for all-day events', () => {
+    expect(eventDay(event('2026-10-15', '2026-10-16', true))).toBe('2026-10-15');
+  });
+  it('excludes timed events ending at midnight and starting on the following day', () => {
+    expect(occursOn(event('2026-10-15T22:00:00Z', '2026-10-16T07:00:00Z'), '2026-10-16')).toBe(false);
+    expect(occursOn(event('2026-10-17T07:00:00Z', '2026-10-17T08:00:00Z'), '2026-10-16')).toBe(false);
+  });
   it('handles exclusive end dates for multi-day all-day events', () => {
     const camping = event('2026-10-16', '2026-10-19', true);
     expect(eventTime(camping)).toBe('All day');

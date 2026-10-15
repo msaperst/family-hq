@@ -230,4 +230,27 @@ describe('CalendarPanel UI and data lifecycle', () => {
     expect(fetchMock.mock.calls.at(-1)?.[0]).toBe(calendarUrl('2027-01-07', '2027-01-13'));
   });
 
+  it('ignores an initial response that resolves after unmount', async () => {
+    let resolveRequest!: (response: Response) => void;
+    fetchMock.mockImplementation(() => new Promise<Response>(resolve => { resolveRequest = resolve; }));
+    render(<CalendarPanel today={TODAY} />);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const signal = (fetchMock.mock.calls[0][1] as RequestInit).signal as AbortSignal;
+    cleanup();
+    expect(signal.aborted).toBe(true);
+    await act(async () => { resolveRequest(reply([event('Too late')])); });
+    expect(screen.queryByText('Too late')).toBeNull();
+  });
+
+  it('ignores a rejected initial request after unmount', async () => {
+    let rejectRequest!: (error: Error) => void;
+    fetchMock.mockImplementation(() => new Promise<Response>((_resolve, reject) => { rejectRequest = reject; }));
+    render(<CalendarPanel today={TODAY} />);
+    const signal = (fetchMock.mock.calls[0][1] as RequestInit).signal as AbortSignal;
+    cleanup();
+    expect(signal.aborted).toBe(true);
+    await act(async () => { rejectRequest(new Error('Aborted request')); });
+    expect(screen.queryByText('Calendar unavailable · chores still work')).toBeNull();
+  });
+
 });
