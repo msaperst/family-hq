@@ -3,6 +3,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import { buildApp } from '../../src/server/app.js';
 import { openDatabase } from '../../src/server/db.js';
 import { addChild } from '../../src/server/chores.js';
+import { localToday } from '../../src/server/dashboard.js';
 
 describe('parent schedule API', () => {
   let db: DatabaseSync;
@@ -64,6 +65,46 @@ describe('parent schedule API', () => {
     expect(db.prepare("SELECT completed FROM chore_completions WHERE occurrence_id = 'historical'").get()).toMatchObject({ completed: 1 });
     expect(db.prepare("SELECT child_id FROM occurrence_assignees WHERE occurrence_id = 'historical'").get()).toMatchObject({ child_id: 'porter' });
   });
+
+  it('regenerates an untouched occurrence due today when individual changes to each child', async () => {
+    const today = localToday();
+    const input = { ...payload, name: 'Make bed', mode: 'individual', frequency: 'daily',
+      weekdays: [], anchorDate: today, assignees: ['porter'] };
+    const created = await app.inject({ method: 'POST', url: '/api/parent/schedules', payload: input });
+    expect(created.statusCode).toBe(201);
+    const { id } = created.json() as { id: string };
+    expect((await app.inject({ method: 'GET', url: '/api/chores?more=false' })).statusCode).toBe(200);
+    const key = id + ':' + today;
+    expect(db.prepare('SELECT mode FROM chore_occurrences WHERE occurrence_key = ?').get(key)).toMatchObject({ mode: 'individual' });
+    const edited = await app.inject({ method: 'PUT', url: '/api/parent/schedules/' + id,
+      payload: { ...input, mode: 'each', assignees: ['porter', 'miller'] } });
+    expect(edited.statusCode).toBe(200);
+    expect((await app.inject({ method: 'GET', url: '/api/chores?more=false' })).statusCode).toBe(200);
+    expect(db.prepare('SELECT mode FROM chore_occurrences WHERE occurrence_key = ?').get(key)).toMatchObject({ mode: 'each' });
+    expect(db.prepare('SELECT child_id FROM occurrence_assignees WHERE occurrence_id = ? ORDER BY child_id')
+      .all(key)).toEqual([{ child_id: 'miller' }, { child_id: 'porter' }]);
+  });
+
+  it('preserves completed occurrence history after a completion-mode edit', async () => {
+    const today = localToday();
+    const input = { ...payload, name: 'Make bed', mode: 'individual', frequency: 'daily',
+      weekdays: [], anchorDate: today, assignees: ['porter'] };
+    const created = await app.inject({ method: 'POST', url: '/api/parent/schedules', payload: input });
+    const { id } = created.json() as { id: string };
+    expect((await app.inject({ method: 'GET', url: '/api/chores?more=false' })).statusCode).toBe(200);
+    const key = id + ':' + today;
+    db.prepare(`INSERT INTO chore_completions (occurrence_id, child_id, completed, updated_at)
+      VALUES (?, '', 1, '2026-10-15T12:00:00Z')`).run(key);
+    expect((await app.inject({ method: 'PUT', url: '/api/parent/schedules/' + id,
+      payload: { ...input, mode: 'each', assignees: ['porter', 'miller'] } })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'GET', url: '/api/chores?more=false' })).statusCode).toBe(200);
+    expect(db.prepare('SELECT mode FROM chore_occurrences WHERE occurrence_key = ?').get(key)).toMatchObject({ mode: 'individual' });
+    expect(db.prepare('SELECT completed FROM chore_completions WHERE occurrence_id = ? AND child_id = ?')
+      .get(key, '')).toMatchObject({ completed: 1 });
+    expect(db.prepare('SELECT child_id FROM occurrence_assignees WHERE occurrence_id = ?').all(key))
+      .toEqual([{ child_id: 'porter' }]);
+  });
+
   it('rejects invalid edits and unknown schedule ids', async () => {
     expect((await app.inject({ method: 'PUT', url: '/api/parent/schedules/missing', payload })).statusCode).toBe(404);
     const created = await app.inject({ method: 'POST', url: '/api/parent/schedules', payload });

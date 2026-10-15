@@ -79,7 +79,7 @@ export function registerParentApi(app: FastifyInstance, db: DatabaseSync): void 
     // Reconcile untouched future occurrences, retaining history and completions.
     db.exec('BEGIN IMMEDIATE');
     try {
-      db.prepare(`DELETE FROM chore_occurrences WHERE schedule_id = ? AND starts_on > ?
+      db.prepare(`DELETE FROM chore_occurrences WHERE schedule_id = ? AND due_on >= ?
         AND NOT EXISTS (SELECT 1 FROM chore_completions WHERE occurrence_id = chore_occurrences.id)
         AND NOT EXISTS (SELECT 1 FROM completion_events WHERE occurrence_id = chore_occurrences.id)`)
         .run(request.params.id, localToday());

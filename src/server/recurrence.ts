@@ -117,6 +117,14 @@ export function generateOccurrences(db: DatabaseSync, scheduleId: string, from: 
   const entries = previewOccurrences(db, scheduleId, from, to);
   for (const entry of entries) {
     const { skipped, ...input } = entry;
+    // Once a completion has been recorded, the stored occurrence is historical.
+    // A schedule edit must not reinterpret its completion mode or assignees.
+    const history = db.prepare(`SELECT 1 FROM chore_occurrences o
+      WHERE o.occurrence_key = ? AND (
+        EXISTS (SELECT 1 FROM chore_completions c WHERE c.occurrence_id = o.id)
+        OR EXISTS (SELECT 1 FROM completion_events e WHERE e.occurrence_id = o.id)
+      )`).get(input.key);
+    if (history) continue;
     saveOccurrence(db, input);
     if (skipped) db.prepare("UPDATE chore_occurrences SET status = 'skipped' WHERE id = ? AND status = 'active'").run(entry.id);
   }
