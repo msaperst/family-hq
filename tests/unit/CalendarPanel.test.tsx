@@ -176,6 +176,9 @@ describe('CalendarPanel UI and data lifecycle', () => {
   });
 
   it('updates the agenda when an event ends without another network request', async () => {
+    vi.useRealTimers();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-15T23:00:00Z'));
     fetchMock.mockResolvedValue(reply([event('Ending soon', '2026-10-15T22:00:00Z', '2026-10-15T23:01:00Z')]));
     render(<CalendarPanel today={TODAY} />);
     expect(await screen.findByText('Ending soon')).toBeTruthy();
