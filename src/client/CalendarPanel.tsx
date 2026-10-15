@@ -41,8 +41,7 @@ export function activeAgenda(events: FamilyEvent[], now: Date): FamilyEvent[] {
 export function isInProgress(event: FamilyEvent, now: Date): boolean {
   return !event.allDay && Date.parse(event.start) <= now.getTime() && Date.parse(event.end) > now.getTime();
 }
-export type CalendarHealth = 'loading' | 'ready' | 'stale' | 'unavailable';
-export function CalendarPanel({ today, onHealthChange }: { today: string; onHealthChange?: (health: CalendarHealth) => void }) {
+export function CalendarPanel({ today }: { today: string }) {
   const [events, setEvents] = useState<FamilyEvent[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'stale' | 'unavailable'>('loading');
   const [loadedDays, setLoadedDays] = useState(7);
@@ -54,7 +53,6 @@ export function CalendarPanel({ today, onHealthChange }: { today: string; onHeal
   const daysRef = useRef(7);
   const MAX_DAYS = 90;
   const [now, setNow] = useState(() => new Date());
-  useEffect(() => { onHealthChange?.(status); }, [status, onHealthChange]);
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 60_000);
     return () => clearInterval(interval);
@@ -133,6 +131,8 @@ export function CalendarPanel({ today, onHealthChange }: { today: string; onHeal
     <div className="calendar-heading"><h2>Coming up</h2></div>
     <div className="calendar-body" ref={scroller} onScroll={onScroll}>
     {status === 'loading' && <p>Loading calendar…</p>}
+    {status === 'unavailable' && <p role="alert" className="panel-error">Unable to load calendar</p>}
+    {status === 'stale' && <p role="status" className="panel-error">Showing saved calendar events</p>}
     {status !== 'loading' && <div className="calendar-agenda">
       {days.map(day => {
         const dayEvents = upcoming.filter(event => occursOn(event, day));

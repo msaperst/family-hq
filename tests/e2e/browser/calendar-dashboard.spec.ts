@@ -49,7 +49,7 @@ test('calendar outage leaves chores usable', async ({ page }) => {
     status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Calendar unavailable' }),
   }));
   await page.goto('/');
-  await expect(page.getByRole('alert')).toContainText('Calendar unavailable');
+  await expect(page.getByRole('region', { name: 'Family calendar' }).getByRole('alert')).toHaveText('Unable to load calendar');
   await expect(page.getByRole('region', { name: 'Family calendar' }).getByRole('button', { name: 'Load more events' })).toHaveCount(0);
   const bed = page.getByRole('region', { name: 'Porter' }).locator('label.chore').filter({ hasText: 'Make bed' }).first().getByRole('checkbox');
   await bed.click();
@@ -81,7 +81,17 @@ test('shows cached calendar warning while chores remain visible', async ({ page 
   }));
   await page.goto('/');
   const calendar = page.getByRole('region', { name: 'Family calendar' });
-  await expect(page.getByRole('alert')).toContainText('Calendar showing saved events');
+  await expect(calendar.getByRole('status')).toHaveText('Showing saved calendar events');
   await expect(calendar.getByText('Saved appointment')).toBeVisible();
   await expect(page.getByRole('region', { name: 'Porter' })).toBeVisible();
+});
+
+test('both service failures keep the chore columns and calendar panel visible', async ({ page }) => {
+  await page.route('**/api/chores?*', route => route.fulfill({ status: 503, body: '{}' }));
+  await page.route('**/api/calendar/events?*', route => route.fulfill({ status: 503, body: '{}' }));
+  await page.goto('/');
+  await expect(page.getByRole('region', { name: 'Porter' }).getByRole('alert')).toHaveText('Unable to load chores');
+  await expect(page.getByRole('region', { name: 'Miller' }).getByRole('alert')).toHaveText('Unable to load chores');
+  await expect(page.getByRole('region', { name: 'Family calendar' }).getByRole('alert')).toHaveText('Unable to load calendar');
+  await expect(page.locator('.dashboard-header .connection')).toHaveCount(0);
 });

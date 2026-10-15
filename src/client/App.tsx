@@ -1,4 +1,4 @@
-import { CalendarPanel, type CalendarHealth } from './CalendarPanel';
+import { CalendarPanel } from './CalendarPanel';
 import { useCallback, useEffect, useState } from 'react';
 import type { DashboardChore, DashboardResponse } from '../shared/dashboard';
 
@@ -47,7 +47,6 @@ const groups = [
 export function App() {
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [error, setError] = useState('');
-  const [calendarHealth, setCalendarHealth] = useState<CalendarHealth>('loading');
   const [pending, setPending] = useState<string[]>([]);
   const [today, setToday] = useState(phoenixDate);
   const [undoEntries, setUndoEntries] = useState<UndoEntry[]>([]);
@@ -103,27 +102,22 @@ export function App() {
       setPending(previous => previous.filter(item => item !== key));
     }
   }
-  const issues = [error ? 'Chores unavailable' : null,
-    calendarHealth === 'unavailable' ? 'Calendar unavailable' : null,
-    calendarHealth === 'stale' ? 'Calendar showing saved events' : null].filter((issue): issue is string => issue !== null);
   return <main className="dashboard">
-    <header className="dashboard-header">
+    <header className="dashboard-header dashboard-header-centered">
       <div><h1>Family HQ</h1><p>{new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', dateStyle: 'full' }).format(new Date(today + 'T00:00:00Z'))}</p></div>
-      <div className="dashboard-health" role="status" aria-live="polite">
-        <span className={issues.length ? 'connection connection-warning' : 'connection'}>{issues.length ? 'Connection issue' : 'Connected'}</span>
-        {issues.length > 0 && <div className="dashboard-health-details" role="alert">{issues.map(issue => <span key={issue}>{issue}</span>)}</div>}
-      </div>
+
     </header>
-    {!data && !error && <p>Loading chores…</p>}
     {data?.columns.length === 0 && <p className="empty">No chores scheduled. Everyone's caught up!</p>}
     <div className="dashboard-content"><div className="chores-panel">
-    {data && <div className="columns">
-      {data.columns.map(column => {
+    {!data && !error && <p>Loading chores…</p>}
+    {(data || error) && <div className="columns">
+      {(data?.columns ?? [{ id: "porter", name: "Porter", chores: [] }, { id: "miller", name: "Miller", chores: [] }]).map(column => {
         const retained = undoEntries.filter(entry => entry.columnId === column.id && entry.expiresAt > Date.now() && !column.chores.some(chore => chore.id === entry.chore.id));
         const choresForColumn = [...column.chores.map(chore => undoEntries.some(entry => entry.chore.id === chore.id) ? { ...chore, completed: true } : chore), ...retained.map(entry => entry.chore)];
         return <section className="column" key={column.id} aria-label={column.name}>
         <div className="column-heading"><h2>{column.name}</h2><p>{choresForColumn.filter(chore => chore.completed).length} completed</p></div>
         <div className="column-body">
+        {error && <p role="alert" className="panel-error">Unable to load chores</p>}
         {groups.map(group => {
           const chores = choresForColumn.filter(chore => (undoEntries.some(entry => entry.chore.id === chore.id) ? 'overdue' : sectionFor(chore, today)) === group.id);
           if (!chores.length) return null;
@@ -141,6 +135,6 @@ export function App() {
         </div>
       </section>; })}
     </div>}
-    </div><CalendarPanel today={today} onHealthChange={setCalendarHealth} /></div>
+    </div><CalendarPanel today={today} /></div>
   </main>;
 }
