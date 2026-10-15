@@ -98,3 +98,28 @@ test('exception removal stays disabled while a delete is pending', async ({ page
   await expect(remove).toHaveCount(0);
   expect(deletes).toBe(1);
 });
+
+test('changing today’s generated individual bed chore to each child keeps the dashboard working', async ({ page }) => {
+  // Opening the dashboard first persists today's individual occurrence.
+  await page.goto('/');
+  await expect(page.getByRole('region', { name: 'Porter' }).getByText('Make bed').first()).toBeVisible();
+
+  await page.goto('/settings');
+  const porterBed = page.locator('.schedule-list li')
+    .filter({ hasText: 'Make bed' }).filter({ hasText: 'Porter' }).first();
+  await porterBed.getByRole('button', { name: 'Edit' }).click();
+  await page.getByLabel('Who completes it?').selectOption('each');
+  await page.getByLabel('Porter').check();
+  await page.getByLabel('Miller').check();
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await expect(porterBed).toContainText('Porter, Miller');
+
+  const failures: number[] = [];
+  page.on('response', response => {
+    if (response.url().includes('/api/chores') && response.status() >= 500) failures.push(response.status());
+  });
+  await page.goto('/');
+  await expect(page.getByRole('region', { name: 'Porter' }).getByText('Make bed').first()).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Miller' }).getByText('Make bed').first()).toBeVisible();
+  expect(failures).toEqual([]);
+});
