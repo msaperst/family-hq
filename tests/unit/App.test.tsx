@@ -314,7 +314,7 @@ describe('overdue undo branch coverage', () => {
     fireEvent.click(checkbox);
     await waitFor(() => expect(screen.getByRole('checkbox', { name: /Laundry/ })).toHaveProperty('checked', true));
     fireEvent(document, new Event('visibilitychange'));
-    await waitFor(() => expect(fetchMock.mock.calls.filter(([url]) => url === '/api/chores?more=false').length).toBeGreaterThanOrEqual(3));
+    await waitFor(() => expect(fetchMock.mock.calls.filter(([url]) => url === '/api/chores?more=true').length).toBeGreaterThanOrEqual(3));
     expect(screen.getByRole('checkbox', { name: /Laundry/ })).toHaveProperty('checked', true);
     fireEvent.click(screen.getByRole('checkbox', { name: /Laundry/ }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/chores/overdue/completion', expect.objectContaining({
