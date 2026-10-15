@@ -1,5 +1,5 @@
 import { CalendarPanel } from './CalendarPanel';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DashboardChore, DashboardResponse } from '../shared/dashboard';
 
 const REFRESH_MS = 30_000;
@@ -47,6 +47,13 @@ const groups = [
 export function App() {
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [error, setError] = useState('');
+  const [loadedWeeks, setLoadedWeeks] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [moreError, setMoreError] = useState(false);
+  const loadingMoreRef = useRef(false);
+  const weeksRef = useRef(1);
+  const baseDayRef = useRef(phoenixDate());
+  const MAX_WEEKS = 13;
   const [pending, setPending] = useState<string[]>([]);
   const [today, setToday] = useState(phoenixDate);
   const [undoEntries, setUndoEntries] = useState<UndoEntry[]>([]);
@@ -58,18 +65,35 @@ export function App() {
   }, [undoEntries]);
   const refresh = useCallback(async (signal?: AbortSignal) => {
     try {
-      const response = await fetch(`/api/chores?more=true`, { signal });
+      const response = await fetch(`/api/chores?date=${baseDayRef.current}&more=false`, { signal });
       if (!response.ok) throw new Error('Unable to load chores');
       const result = await response.json() as DashboardResponse;
-      if (!signal?.aborted) { setData(result); setError(''); setToday(result.today); }
+      if (!signal?.aborted) { setData(previous => { if (!previous || weeksRef.current === 1 || previous.today !== result.today) return result; const first = new Map(result.columns.map(column => [column.id, column])); return { ...previous, columns: previous.columns.map(column => { const fresh = first.get(column.id); const byId = new Map(column.chores.map(chore => [chore.id + ':' + chore.childId, chore])); for (const chore of fresh?.chores ?? []) byId.set(chore.id + ':' + chore.childId, chore); return { ...column, chores: [...byId.values()] }; }).concat(result.columns.filter(column => !previous.columns.some(existing => existing.id === column.id))) }; }); setError(''); setToday(result.today); }
     } catch (cause) {
       if (!signal?.aborted) setError(cause instanceof Error ? cause.message : 'Unable to load chores');
     }
   }, []);
+  const loadMore = useCallback(async () => {
+    if (loadingMoreRef.current || weeksRef.current >= MAX_WEEKS || !data) return;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    setMoreError(false);
+    const from = new Date(Date.parse(baseDayRef.current + 'T00:00:00Z') + weeksRef.current * 7 * 86_400_000).toISOString().slice(0, 10);
+    try {
+      const response = await fetch(`/api/chores?date=${from}&window=true`);
+      if (!response.ok) throw new Error('Unable to load more chores');
+      const next = await response.json() as DashboardResponse;
+      setData(previous => { if (!previous) return next; const columns = new Map(previous.columns.map(column => [column.id, { ...column, chores: [...column.chores] }])); for (const column of next.columns) { const existing = columns.get(column.id); if (!existing) { columns.set(column.id, column); continue; } const known = new Set(existing.chores.map(chore => chore.id + ':' + chore.childId)); for (const chore of column.chores) if (!known.has(chore.id + ':' + chore.childId)) { existing.chores.push(chore); known.add(chore.id + ':' + chore.childId); } } return { ...previous, through: next.through, columns: [...columns.values()] }; });
+      weeksRef.current += 1;
+      setLoadedWeeks(weeksRef.current);
+    } catch { setMoreError(true); }
+    finally { loadingMoreRef.current = false; setLoadingMore(false); }
+  }, [data]);
+  const onChoreScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => { const node = event.currentTarget; if (node.scrollHeight - node.scrollTop - node.clientHeight < 250 && !moreError) void loadMore(); }, [loadMore, moreError]);
   useEffect(() => {
     const controller = new AbortController();
     void refresh(controller.signal);
-    const interval = setInterval(() => { setToday(phoenixDate()); void refresh(controller.signal); }, REFRESH_MS);
+    const interval = setInterval(() => { const current = phoenixDate(); if (current !== baseDayRef.current) { baseDayRef.current = current; weeksRef.current = 1; setLoadedWeeks(1); setData(null); } setToday(current); void refresh(controller.signal); }, REFRESH_MS);
     const visible = () => { if (!document.hidden) void refresh(controller.signal); };
     document.addEventListener('visibilitychange', visible);
     return () => { controller.abort(); clearInterval(interval); document.removeEventListener('visibilitychange', visible); };
@@ -111,13 +135,13 @@ export function App() {
     <div className="dashboard-content"><div className="chores-panel">
     {!data && !error && <p>Loading chores…</p>}
     {(data || error) && <div className="columns">
-      {(data?.columns ?? [{ id: "porter", name: "Porter", chores: [] }, { id: "miller", name: "Miller", chores: [] }]).map(column => {
+      {(data?.columns ?? [{ id: "chores", name: "Chores", chores: [] }]).map(column => {
         const retained = undoEntries.filter(entry => entry.columnId === column.id && entry.expiresAt > Date.now() && !column.chores.some(chore => chore.id === entry.chore.id));
         const choresForColumn = [...column.chores.map(chore => undoEntries.some(entry => entry.chore.id === chore.id) ? { ...chore, completed: true } : chore), ...retained.map(entry => entry.chore)];
         return <section className="column" key={column.id} aria-label={column.name}>
         <div className="column-heading"><h2>{column.name}</h2><p>{choresForColumn.filter(chore => chore.completed).length} completed</p></div>
-        <div className="column-body">
-        {error && <p role="alert" className="panel-error">Unable to load chores</p>}
+        <div className="column-body" onScroll={onChoreScroll}>
+        {error && <p role="alert" className="panel-error">{data ? "Showing saved chores — unable to refresh" : "Unable to load chores"}</p>}
         {groups.map(group => {
           const chores = choresForColumn.filter(chore => (undoEntries.some(entry => entry.chore.id === chore.id) ? 'overdue' : sectionFor(chore, today)) === group.id);
           if (!chores.length) return null;
@@ -132,6 +156,9 @@ export function App() {
             })}
           </section>;
         })}
+        {loadingMore && <p role="status" className="calendar-empty">Loading more chores…</p>}
+        {moreError && <button type="button" className="agenda-more" onClick={() => void loadMore()}>Retry loading chores</button>}
+        {data && loadedWeeks < MAX_WEEKS && !loadingMore && !moreError && <button type="button" className="agenda-more" onClick={() => void loadMore()}>Load more chores</button>}
         </div>
       </section>; })}
     </div>}

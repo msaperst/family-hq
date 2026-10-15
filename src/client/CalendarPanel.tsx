@@ -131,7 +131,7 @@ export function CalendarPanel({ today }: { today: string }) {
     <div className="calendar-heading"><h2>Coming up</h2></div>
     <div className="calendar-body" ref={scroller} onScroll={onScroll}>
     {status === 'loading' && <p>Loading calendar…</p>}
-    {status === 'unavailable' && <p role="alert" className="panel-error">Unable to load calendar</p>}
+    {status === 'unavailable' && <p role="alert" className="panel-error">{events.length ? "Showing saved calendar — unable to refresh" : "Unable to load calendar"}</p>}
     {status === 'stale' && <p role="status" className="panel-error">Showing saved calendar events</p>}
     {status !== 'loading' && <div className="calendar-agenda">
       {days.map(day => {
@@ -150,7 +150,7 @@ export function CalendarPanel({ today }: { today: string }) {
       {loadingMore && <p role="status">Loading more events…</p>}
       {loadError && <button type="button" className="agenda-more" onClick={() => void loadMore()}>Retry loading events</button>}
       {!hasMore && <p className="calendar-empty">End of 90-day calendar window</p>}
-      {hasMore && status !== 'unavailable' && !loadingMore && !loadError && <button type="button" className="agenda-more" onClick={() => void loadMore()}>Load more events</button>}
+      {hasMore && (status !== 'unavailable' || events.length > 0) && !loadingMore && !loadError && <button type="button" className="agenda-more" onClick={() => void loadMore()}>Load more events</button>}
     </div>}
     </div>
   </section>;

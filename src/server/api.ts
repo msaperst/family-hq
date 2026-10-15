@@ -29,12 +29,12 @@ export function registerChoreApi(app: FastifyInstance, db: DatabaseSync): void {
     done();
   });
   app.get('/api/children', () => ({ children: children(db) }));
-  app.get<{ Querystring: { date?: string; more?: string } }>('/api/chores', (request, reply) => {
-    const { date, more } = request.query;
-    if ((date !== undefined && !validDate(date)) || (more !== undefined && more !== 'true' && more !== 'false')) {
+  app.get<{ Querystring: { date?: string; more?: string; window?: string } }>('/api/chores', (request, reply) => {
+    const { date, more, window } = request.query;
+    if ((date !== undefined && !validDate(date)) || (more !== undefined && more !== 'true' && more !== 'false') || (window !== undefined && window !== 'true')) {
       return reply.code(400).send({ error: 'Invalid date or more parameter' });
     }
-    return dashboard(db, date ?? localToday(), more === 'true' ? 21 : 0);
+    return dashboard(db, date ?? localToday(), window === 'true' ? 0 : more === 'true' ? 21 : 0, window !== 'true');
   });
   app.put<{ Params: { id: string }; Body: { childId?: string | null; completed?: boolean; performedBy?: string | null } }>(
     '/api/chores/:id/completion', (request, reply) => {

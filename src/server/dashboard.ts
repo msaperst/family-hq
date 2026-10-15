@@ -15,7 +15,7 @@ export function children(db: DatabaseSync): ChildResponse[] {
   return db.prepare('SELECT id, name FROM children WHERE active = 1 ORDER BY name').all() as unknown as ChildResponse[];
 }
 interface OccurrenceRow { id: string; name: string; starts_on: string; due_on: string; mode: DashboardChore['mode']; child_id: string; completed: number }
-export function dashboard(db: DatabaseSync, today: string, extraDays = 0): DashboardResponse {
+export function dashboard(db: DatabaseSync, today: string, extraDays = 0, includeOverdue = true): DashboardResponse {
   const through = dateOffset(today, 6 + extraDays);
   // Generate only the requested horizon. Previously generated incomplete occurrences
   // remain in SQLite, even when their original day has passed.
@@ -33,9 +33,9 @@ export function dashboard(db: DatabaseSync, today: string, extraDays = 0): Dashb
     LEFT JOIN chore_schedules schedule ON schedule.id = o.schedule_id
     WHERE o.status = 'active' AND c.archived = 0 AND child.active = 1
       AND (schedule.id IS NULL OR schedule.paused = 0)
-      AND o.starts_on <= ? AND (o.due_on >= ? OR COALESCE(co.completed, 0) = 0)
+      AND o.starts_on <= ? AND (o.due_on >= ? OR (? = 1 AND COALESCE(co.completed, 0) = 0))
     ORDER BY o.due_on, c.name, o.id
-  `).all(through, today) as unknown as OccurrenceRow[];
+  `).all(through, today, includeOverdue ? 1 : 0) as unknown as OccurrenceRow[];
   const active = children(db);
   const columns = new Map<string, DashboardColumn>();
   for (const child of active) columns.set(child.id, { id: child.id, name: child.name, chores: [] });
