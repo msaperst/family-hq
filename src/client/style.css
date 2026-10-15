@@ -118,3 +118,29 @@ h1 { font-size: clamp(1.8rem, 4vw, 2.5rem); margin: 0; }
 @media (max-width: 540px) {
   .chores-panel .columns { grid-template-columns: 1fr; }
 }
+
+/* Constrain nested grid/flex sizing so chore columns scroll instead of growing below the viewport. */
+@media (min-width: 951px) and (orientation: landscape) {
+  .dashboard-content { min-height: 0; overflow: hidden; grid-template-rows: minmax(0, 1fr); }
+  .chores-panel { height: 100%; min-height: 0; overflow: hidden; }
+  .chores-panel .columns {
+    height: 100%;
+    min-height: 0;
+    max-height: 100%;
+    flex: 1 1 0;
+    grid-template-rows: minmax(0, 1fr);
+    overflow: hidden;
+  }
+  .chores-panel .column {
+    height: 100%;
+    min-height: 0;
+    max-height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+  .dashboard-content .calendar-panel {
+    max-height: 100%;
+    -webkit-overflow-scrolling: touch;
+  }
+}
