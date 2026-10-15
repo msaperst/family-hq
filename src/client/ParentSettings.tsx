@@ -95,6 +95,7 @@ export function ParentSettings() {
   }
   async function saveException(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!editingId) return;
     await runMutation(async () => {
     try {
       const response = await fetch('/api/parent/schedules/' + encodeURIComponent(editingId!) +
@@ -110,6 +111,7 @@ export function ParentSettings() {
     });
   }
   async function removeException(date: string) {
+    if (!editingId) return;
     await runMutation(async () => {
     try {
       const response = await fetch('/api/parent/schedules/' + encodeURIComponent(editingId!) +
