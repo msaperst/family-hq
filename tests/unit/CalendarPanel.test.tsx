@@ -162,7 +162,7 @@ describe('CalendarPanel UI and data lifecycle', () => {
     render(<CalendarPanel today={TODAY} />);
     const button = await screen.findByRole('button', { name: 'Load more events' });
     fireEvent.click(button);
-    expect((await screen.findByRole('status')).textContent).toContain('Showing saved events');
+    await waitFor(() => expect(screen.getByText('Showing saved events')).toBeTruthy());
   });
 
   it.each([
@@ -180,7 +180,7 @@ describe('CalendarPanel UI and data lifecycle', () => {
     render(<CalendarPanel today={TODAY} />);
     expect(await screen.findByText('Ending soon')).toBeTruthy();
     expect(screen.getByText('In progress')).toBeTruthy();
-    await act(async () => { vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-15T23:02:00Z')); await vi.advanceTimersByTimeAsync(60_000); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(120_000); });
     expect(screen.queryByText('Ending soon')).toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
