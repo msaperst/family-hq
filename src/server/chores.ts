@@ -38,16 +38,26 @@ export function saveOccurrence(db: DatabaseSync, input: OccurrenceInput): void {
       VALUES (?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(occurrence_key) DO NOTHING`)
       .run(input.id, input.key, input.choreId, input.scheduleId ?? null, input.startsOn, input.dueOn, input.mode);
-    const existing = db.prepare('SELECT id, chore_id, mode, starts_on, due_on FROM chore_occurrences WHERE occurrence_key = ?').get(input.key) as
-      { id: string; chore_id: string; mode: string; starts_on: string; due_on: string };
+    const existing = db.prepare('SELECT id, chore_id, schedule_id, mode, starts_on, due_on FROM chore_occurrences WHERE occurrence_key = ?').get(input.key) as
+      { id: string; chore_id: string; schedule_id: string | null; mode: string; starts_on: string; due_on: string };
     if (existing.id !== input.id || existing.chore_id !== input.choreId || existing.mode !== input.mode ||
       existing.starts_on !== input.startsOn || existing.due_on !== input.dueOn) {
-      throw new Error('Occurrence key conflict: existing occurrence differs');
+      const differences = {
+        id: { stored: existing.id, generated: input.id },
+        choreId: { stored: existing.chore_id, generated: input.choreId },
+        scheduleId: { stored: existing.schedule_id, generated: input.scheduleId ?? null },
+        mode: { stored: existing.mode, generated: input.mode },
+        startsOn: { stored: existing.starts_on, generated: input.startsOn },
+        dueOn: { stored: existing.due_on, generated: input.dueOn },
+      };
+      const changed = Object.fromEntries(Object.entries(differences).filter(([, values]) => values.stored !== values.generated));
+      throw new Error('Occurrence key conflict: existing occurrence differs; key=' + input.key +
+        '; scheduleId=' + (input.scheduleId ?? 'none') + '; differences=' + JSON.stringify(changed));
     }
     const add = db.prepare('INSERT OR IGNORE INTO occurrence_assignees (occurrence_id, child_id) VALUES (?, ?)');
     for (const child of input.assignees) add.run(input.id, child);
     const actual = (db.prepare('SELECT child_id FROM occurrence_assignees WHERE occurrence_id = ?').all(input.id) as { child_id: string }[]).map(x => x.child_id).sort((a, b) => a.localeCompare(b));
-    if (JSON.stringify(actual) !== JSON.stringify([...input.assignees].sort((a, b) => a.localeCompare(b)))) throw new Error('Occurrence assignees conflict');
+    if (JSON.stringify(actual) !== JSON.stringify([...input.assignees].sort((a, b) => a.localeCompare(b)))) throw new Error('Occurrence assignees conflict; key=' + input.key + '; scheduleId=' + (input.scheduleId ?? 'none') + '; stored=' + JSON.stringify(actual) + '; generated=' + JSON.stringify([...input.assignees].sort((a, b) => a.localeCompare(b))));
   });
 }
 export function setCompletion(db: DatabaseSync, occurrenceId: string, childId: string | null, completed: boolean, performedBy: string | null = null): boolean {
