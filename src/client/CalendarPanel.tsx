@@ -59,13 +59,23 @@ export function CalendarPanel({ today }: { today: string }) {
   }, []);
   useEffect(() => {
     const controller = new AbortController();
+    daysRef.current = 7;
+    setLoadedDays(7);
+    setHasMore(true);
+    setLoadError(false);
+    setEvents([]);
+    setStatus('loading');
     const load = async () => {
       try {
-        const response = await fetch('/api/calendar/events?from=' + today + '&to=' + addDays(today, 8), { signal: controller.signal });
+        const response = await fetch('/api/calendar/events?from=' + today + '&to=' + addDays(today, 7), { signal: controller.signal });
         if (!response.ok) throw new Error('Calendar unavailable');
         const result = await response.json() as { events: FamilyEvent[]; stale: boolean };
         if (!controller.signal.aborted) {
-          setEvents(result.events);
+          setEvents(previous => {
+            const merged = new Map(previous.map(event => [event.id, event]));
+            for (const event of result.events) merged.set(event.id, event);
+            return [...merged.values()];
+          });
           setStatus(result.stale ? 'stale' : 'ready');
         }
       } catch {
@@ -78,6 +88,41 @@ export function CalendarPanel({ today }: { today: string }) {
     document.addEventListener('visibilitychange', visible);
     return () => { controller.abort(); clearInterval(interval); document.removeEventListener('visibilitychange', visible); };
   }, [today]);
+
+  const loadMore = useCallback(async () => {
+    if (loadingRef.current || daysRef.current >= MAX_DAYS || status === 'loading') return;
+    loadingRef.current = true;
+    setLoadingMore(true);
+    setLoadError(false);
+    const from = addDays(today, daysRef.current);
+    const nextDays = Math.min(7, MAX_DAYS - daysRef.current);
+    try {
+      const response = await fetch('/api/calendar/events?from=' + from + '&to=' + addDays(from, nextDays));
+      if (!response.ok) throw new Error('Could not load more events');
+      const result = await response.json() as { events: FamilyEvent[]; stale: boolean };
+      setEvents(previous => {
+        const merged = new Map(previous.map(event => [event.id, event]));
+        for (const event of result.events) merged.set(event.id, event);
+        return [...merged.values()];
+      });
+      daysRef.current += nextDays;
+      setLoadedDays(daysRef.current);
+      setHasMore(daysRef.current < MAX_DAYS);
+      if (result.stale) setStatus('stale');
+    } catch {
+      setLoadError(true);
+    } finally {
+      loadingRef.current = false;
+      setLoadingMore(false);
+    }
+  }, [today, status]);
+
+  const onScroll = useCallback(() => {
+    const node = scroller.current;
+    if (node && node.scrollHeight - node.scrollTop - node.clientHeight < 250 && !loadError) {
+      void loadMore();
+    }
+  }, [loadMore, loadError]);
   const upcoming = activeAgenda(events, now);
   const days = Array.from({ length: loadedDays }, (_, index) => addDays(today, index));
   return <section className="calendar-panel" aria-label="Family calendar" ref={scroller} onScroll={onScroll}>
