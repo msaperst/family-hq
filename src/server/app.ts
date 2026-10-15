@@ -5,11 +5,16 @@ import { resolve } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import type { HealthResponse } from '../shared/health.js';
 import { registerChoreApi } from './api.js';
+import { calendarSettings, GoogleCalendar, registerCalendarApi } from './calendar.js';
 
 export function buildApp(options: { serveClient?: boolean; db?: DatabaseSync } = {}) {
   const app = Fastify({ logger: true });
   app.get('/api/health', (): HealthResponse => ({ status: 'ok', service: 'family-hq' }));
-  if (options.db) registerChoreApi(app, options.db);
+  if (options.db) {
+    registerChoreApi(app, options.db);
+    const settings = calendarSettings(process.env);
+    registerCalendarApi(app, settings ? new GoogleCalendar(settings) : null);
+  }
   if (options.serveClient) {
     const root = resolve(process.cwd(), 'dist/client');
     if (!existsSync(resolve(root, 'index.html'))) throw new Error('Built client assets missing');
