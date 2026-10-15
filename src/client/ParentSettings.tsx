@@ -114,8 +114,8 @@ export function ParentSettings() {
     finally { endMutation(); }
   }
   async function removeException(date: string) {
-    if (!editingId || busy) return;
-    setBusy(true); setError('');
+    if (!editingId || !beginMutation()) return;
+    setError('');
     try {
       const response = await fetch('/api/parent/schedules/' + encodeURIComponent(editingId) +
         '/exceptions/' + encodeURIComponent(date), { method: 'DELETE' });
@@ -125,8 +125,8 @@ export function ParentSettings() {
     finally { endMutation(); }
   }
   async function pause(schedule: Schedule) {
-    if (busy) return;
-    setBusy(true); setError('');
+    if (!beginMutation()) return;
+    setError('');
     try {
       const response = await fetch('/api/parent/schedules/' + encodeURIComponent(schedule.id), {
         method: 'PATCH', headers: { 'content-type': 'application/json' },
