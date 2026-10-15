@@ -46,17 +46,11 @@ test('supports undoing a completed chore', async ({ page }) => {
   await bed.click();
   await expect(bed).not.toBeChecked();
 });
-test('hides later daily chores until Show more is selected', async ({ page }) => {
+test('shows all seven days of chores without an expansion control', async ({ page }) => {
   await page.goto('/');
   const porter = page.getByRole('region', { name: 'Porter' });
-  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Phoenix', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-  const weekday = new Date(today + 'T00:00:00Z').getUTCDay();
-  const visibleCount = weekday === 0 ? 1 : 2;
-  await expect(porter.locator('label.chore').filter({ hasText: 'Make bed' })).toHaveCount(visibleCount);
-  await page.getByRole('button', { name: 'Show more upcoming chores' }).click();
   await expect(porter.locator('label.chore').filter({ hasText: 'Make bed' })).toHaveCount(7);
-  await page.getByRole('button', { name: 'Hide upcoming chores' }).click();
-  await expect(porter.locator('label.chore').filter({ hasText: 'Make bed' })).toHaveCount(visibleCount);
+  await expect(page.getByRole('button', { name: /Show more upcoming chores|Hide upcoming chores/ })).toHaveCount(0);
 });
 test('shared completion persists across browser tabs', async ({ browser }) => {
   const context = await browser.newContext();
@@ -99,7 +93,6 @@ test('completed overdue chore disappears after 30 seconds without reload', async
 test('does not show chores completed on previous days', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByText('Yesterday completed test chore')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Show more upcoming chores' }).click();
   await expect(page.getByText('Yesterday completed test chore')).toHaveCount(0);
   await page.reload();
   await expect(page.getByText('Yesterday completed test chore')).toHaveCount(0);
@@ -127,7 +120,7 @@ test('keeps overdue undo available across a dashboard refresh during the 30-seco
 
   // Force the same API refresh that periodic polling performs while still inside the undo window.
   await page.clock.fastForward(15_000);
-  const responses = page.waitForResponse(response => response.url().includes('/api/chores?more=false') && response.status() === 200);
+  const responses = page.waitForResponse(response => response.url().includes('/api/chores?more=true') && response.status() === 200);
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
   await responses;
   await expect(checkbox).toBeChecked();
