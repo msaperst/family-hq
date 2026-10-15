@@ -49,7 +49,8 @@ test('calendar outage leaves chores usable', async ({ page }) => {
     status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Calendar unavailable' }),
   }));
   await page.goto('/');
-  await expect(page.getByRole('region', { name: 'Family calendar' }).getByText(/Calendar unavailable/)).toBeVisible();
+  await expect(page.getByRole('alert')).toContainText('Calendar unavailable');
+  await expect(page.getByRole('region', { name: 'Family calendar' }).getByRole('button', { name: 'Load more events' })).toHaveCount(0);
   const bed = page.getByRole('region', { name: 'Porter' }).locator('label.chore').filter({ hasText: 'Make bed' }).first().getByRole('checkbox');
   await bed.click();
   await expect(bed).toBeChecked();
@@ -80,7 +81,7 @@ test('shows cached calendar warning while chores remain visible', async ({ page 
   }));
   await page.goto('/');
   const calendar = page.getByRole('region', { name: 'Family calendar' });
-  await expect(calendar.getByText('Showing saved events')).toBeVisible();
+  await expect(page.getByRole('alert')).toContainText('Calendar showing saved events');
   await expect(calendar.getByText('Saved appointment')).toBeVisible();
   await expect(page.getByRole('region', { name: 'Porter' })).toBeVisible();
 });

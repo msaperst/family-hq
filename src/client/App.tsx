@@ -1,4 +1,4 @@
-import { CalendarPanel } from './CalendarPanel';
+import { CalendarPanel, type CalendarHealth } from './CalendarPanel';
 import { useCallback, useEffect, useState } from 'react';
 import type { DashboardChore, DashboardResponse } from '../shared/dashboard';
 
@@ -47,6 +47,7 @@ const groups = [
 export function App() {
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [error, setError] = useState('');
+  const [calendarHealth, setCalendarHealth] = useState<CalendarHealth>('loading');
   const [pending, setPending] = useState<string[]>([]);
   const [today, setToday] = useState(phoenixDate);
   const [undoEntries, setUndoEntries] = useState<UndoEntry[]>([]);
@@ -102,12 +103,17 @@ export function App() {
       setPending(previous => previous.filter(item => item !== key));
     }
   }
+  const issues = [error ? 'Chores unavailable' : null,
+    calendarHealth === 'unavailable' ? 'Calendar unavailable' : null,
+    calendarHealth === 'stale' ? 'Calendar showing saved events' : null].filter((issue): issue is string => issue !== null);
   return <main className="dashboard">
     <header className="dashboard-header">
       <div><h1>Family HQ</h1><p>{new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', dateStyle: 'full' }).format(new Date(today + 'T00:00:00Z'))}</p></div>
-      <span className="connection">{error ? 'Connection issue' : 'Connected'}</span>
+      <div className="dashboard-health" role="status" aria-live="polite">
+        <span className={issues.length ? 'connection connection-warning' : 'connection'}>{issues.length ? 'Connection issue' : 'Connected'}</span>
+        {issues.length > 0 && <div className="dashboard-health-details" role="alert">{issues.map(issue => <span key={issue}>{issue}</span>)}</div>}
+      </div>
     </header>
-    {error && <p role="alert" className="error">{error}</p>}
     {!data && !error && <p>Loading chores…</p>}
     {data?.columns.length === 0 && <p className="empty">No chores scheduled. Everyone's caught up!</p>}
     <div className="dashboard-content"><div className="chores-panel">
@@ -135,6 +141,6 @@ export function App() {
         </div>
       </section>; })}
     </div>}
-    </div><CalendarPanel today={today} /></div>
+    </div><CalendarPanel today={today} onHealthChange={setCalendarHealth} /></div>
   </main>;
 }

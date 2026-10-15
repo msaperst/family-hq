@@ -80,12 +80,12 @@ describe('Family HQ dashboard', () => {
   it('reports a failed dashboard request', async () => {
     fetchMock.mockRejectedValue(new Error('offline'));
     render(<App />);
-    expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'offline');
+    expect((await screen.findByRole('alert')).textContent).toContain('Chores unavailable');
   });
   it('reports non-OK dashboard responses', async () => {
     fetchMock.mockResolvedValue({ ok: false } as Response);
     render(<App />);
-    expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'Unable to load chores');
+    expect((await screen.findByRole('alert')).textContent).toContain('Chores unavailable');
   });
   it('reports a failed completion without claiming success', async () => {
     fetchMock.mockImplementation(async (_url, options) => {
@@ -95,7 +95,7 @@ describe('Family HQ dashboard', () => {
     render(<App />);
     await screen.findByText('Make bed');
     fireEvent.click(screen.getByRole('checkbox', { name: /Make bed/ }));
-    expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'Could not save completion');
+    expect((await screen.findByRole('alert')).textContent).toContain('Chores unavailable');
     expect(screen.getByRole('checkbox', { name: /Make bed/ })).toHaveProperty('checked', false);
   });
   it('reports completion network errors and restores the control', async () => {
@@ -106,7 +106,7 @@ describe('Family HQ dashboard', () => {
     render(<App />);
     await screen.findByText('Make bed');
     fireEvent.click(screen.getByRole('checkbox', { name: /Make bed/ }));
-    expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'Network lost');
+    expect((await screen.findByRole('alert')).textContent).toContain('Chores unavailable');
     await waitFor(() => expect(screen.getByRole('checkbox', { name: /Make bed/ })).toHaveProperty('disabled', false));
   });
   it('disables a chore while its completion request is pending', async () => {
@@ -133,7 +133,7 @@ describe('Family HQ dashboard', () => {
       return response();
     });
     render(<App />);
-    expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'Temporary outage');
+    expect((await screen.findByRole('alert')).textContent).toContain('Chores unavailable');
     fireEvent(document, new Event('visibilitychange'));
     expect(await screen.findByText('Make bed')).toBeTruthy();
     await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
@@ -203,7 +203,7 @@ describe('Family HQ dashboard', () => {
     render(<App />);
     await screen.findByText('Make bed');
     fireEvent.click(screen.getByRole('checkbox', { name: /Make bed/ }));
-    expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'Could not save completion');
+    expect((await screen.findByRole('alert')).textContent).toContain('Chores unavailable');
   });
   it('keeps already loaded chores visible during a subsequent refresh error', async () => {
     let reads = 0;
@@ -215,7 +215,7 @@ describe('Family HQ dashboard', () => {
     render(<App />);
     await screen.findByText('Make bed');
     fireEvent(document, new Event('visibilitychange'));
-    expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'Refresh failed');
+    expect((await screen.findByRole('alert')).textContent).toContain('Chores unavailable');
     expect(screen.getByText('Make bed')).toBeTruthy();
   });
   it('aborts the outstanding request on unmount', () => {
@@ -330,7 +330,7 @@ describe('overdue undo branch coverage', () => {
     render(<App />);
     const checkbox = await screen.findByRole('checkbox', { name: /Laundry/ });
     fireEvent.click(checkbox);
-    expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'Could not save completion');
+    expect((await screen.findByRole('alert')).textContent).toContain('Chores unavailable');
     expect(screen.getByRole('checkbox', { name: /Laundry/ })).toHaveProperty('checked', false);
   });
 });

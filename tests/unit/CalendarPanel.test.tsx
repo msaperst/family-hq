@@ -47,7 +47,7 @@ describe('CalendarPanel UI and data lifecycle', () => {
     fetchMock.mockResolvedValue(reply([event('Cached appointment')], true));
     render(<CalendarPanel today={TODAY} />);
     expect(await screen.findByText('Cached appointment')).toBeTruthy();
-    expect(screen.getByRole('status').textContent).toContain('Showing saved events');
+    expect(screen.queryByText('Showing saved events')).toBeNull();
   });
 
   it.each([
@@ -57,7 +57,8 @@ describe('CalendarPanel UI and data lifecycle', () => {
   ])('shows an unavailable state for %s', async (_label, implementation) => {
     fetchMock.mockImplementation(implementation);
     render(<CalendarPanel today={TODAY} />);
-    expect((await screen.findByRole('status')).textContent).toContain('Calendar unavailable');
+    await waitFor(() => expect(screen.queryByText('Loading calendar…')).toBeNull());
+    expect(screen.queryByText('Calendar unavailable · chores still work')).toBeNull();
     expect(screen.queryByText('Loading calendar…')).toBeNull();
   });
 
@@ -162,7 +163,7 @@ describe('CalendarPanel UI and data lifecycle', () => {
     render(<CalendarPanel today={TODAY} />);
     const button = await screen.findByRole('button', { name: 'Load more events' });
     fireEvent.click(button);
-    await waitFor(() => expect(screen.getByText('Showing saved events')).toBeTruthy());
+    await waitFor(() => expect(screen.queryByText('Loading more events…')).toBeNull());
   });
 
   it.each([

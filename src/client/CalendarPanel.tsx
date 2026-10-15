@@ -41,7 +41,8 @@ export function activeAgenda(events: FamilyEvent[], now: Date): FamilyEvent[] {
 export function isInProgress(event: FamilyEvent, now: Date): boolean {
   return !event.allDay && Date.parse(event.start) <= now.getTime() && Date.parse(event.end) > now.getTime();
 }
-export function CalendarPanel({ today }: { today: string }) {
+export type CalendarHealth = 'loading' | 'ready' | 'stale' | 'unavailable';
+export function CalendarPanel({ today, onHealthChange }: { today: string; onHealthChange?: (health: CalendarHealth) => void }) {
   const [events, setEvents] = useState<FamilyEvent[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'stale' | 'unavailable'>('loading');
   const [loadedDays, setLoadedDays] = useState(7);
@@ -53,6 +54,7 @@ export function CalendarPanel({ today }: { today: string }) {
   const daysRef = useRef(7);
   const MAX_DAYS = 90;
   const [now, setNow] = useState(() => new Date());
+  useEffect(() => { onHealthChange?.(status); }, [status, onHealthChange]);
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 60_000);
     return () => clearInterval(interval);
@@ -130,8 +132,6 @@ export function CalendarPanel({ today }: { today: string }) {
   return <section className="calendar-panel" aria-label="Family calendar">
     <div className="calendar-heading"><h2>Coming up</h2></div>
     <div className="calendar-body" ref={scroller} onScroll={onScroll}>
-    {status === 'stale' && <p role="status" className="calendar-status">Showing saved events</p>}
-    {status === 'unavailable' && <p role="status" className="calendar-status">Calendar unavailable · chores still work</p>}
     {status === 'loading' && <p>Loading calendar…</p>}
     {status !== 'loading' && <div className="calendar-agenda">
       {days.map(day => {
@@ -150,7 +150,7 @@ export function CalendarPanel({ today }: { today: string }) {
       {loadingMore && <p role="status">Loading more events…</p>}
       {loadError && <button type="button" className="agenda-more" onClick={() => void loadMore()}>Retry loading events</button>}
       {!hasMore && <p className="calendar-empty">End of 90-day calendar window</p>}
-      {hasMore && !loadingMore && !loadError && <button type="button" className="agenda-more" onClick={() => void loadMore()}>Load more events</button>}
+      {hasMore && status !== 'unavailable' && !loadingMore && !loadError && <button type="button" className="agenda-more" onClick={() => void loadMore()}>Load more events</button>}
     </div>}
     </div>
   </section>;
