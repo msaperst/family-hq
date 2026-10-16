@@ -97,7 +97,7 @@ export function ParentSettings() {
       try {
         const response = await fetch('/api/parent/children/' + encodeURIComponent(child.id), {
           method: 'PATCH', headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ active: !child.active === 1 }),
+          body: JSON.stringify({ active: child.active !== 1 }),
         });
         if (!response.ok) throw new Error((await response.json() as { error?: string }).error ?? 'Unable to update child');
         await load();
@@ -196,7 +196,7 @@ export function ParentSettings() {
       <p>Add children before assigning chores. Deactivate children assigned only to paused schedules; delete is available only when no assignments or history exist.</p>
       {managedChildren.length === 0 && <p>No children yet. Add a child to get started.</p>}
       <ul className="schedule-list">{managedChildren.map(child => <li key={child.id}>
-        <span><strong>{child.name}</strong>{!child.active === 1 && ' (Inactive)'}</span>
+        <span><strong>{child.name}</strong>{child.active !== 1 && ' (Inactive)'}</span>
         <div className="schedule-actions">
           <button type="button" disabled={busy} onClick={() => { setEditingChildId(child.id); setEditingChildName(child.name); }}>Rename</button>
           <button type="button" disabled={busy} onClick={() => void changeChildStatus(child)}>{child.active === 1 ? 'Deactivate' : 'Reactivate'}</button>
