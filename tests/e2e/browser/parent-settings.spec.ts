@@ -42,7 +42,7 @@ test('requires paused assignments before deactivation and supports reactivation'
   await page.getByLabel('Chore name').fill('Put away shoes');
   await page.getByLabel('Robin').check();
   await page.getByRole('button', { name: 'Add chore' }).click();
-  const choreRow = page.locator('.settings-panel').filter({ has: page.getByRole('heading', { name: 'Scheduled chores' } })
+  const choreRow = page.locator('.settings-panel').filter({ has: page.getByRole('heading', { name: 'Scheduled chores' }) })
     .locator('.schedule-list li').filter({ hasText: 'Put away shoes' });
   await expect(choreRow).toBeVisible();
 
