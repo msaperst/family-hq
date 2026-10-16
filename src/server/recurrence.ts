@@ -81,6 +81,16 @@ function isScheduled(context: RecurrenceContext, day: number): boolean {
   if (!flexible) return due(schedule, day, anchor, weekdays);
   return day + 6 >= anchor && (!schedule.end_date || day <= parseDate(schedule.end_date));
 }
+// Daily rotation advances for each actual scheduled occurrence, not elapsed days.
+// Counting from the schedule anchor makes previews stable across query windows.
+function scheduledOrdinal(context: RecurrenceContext, day: number): number {
+  if (context.flexible) return Math.floor((monday(day) - monday(context.anchor)) / 7);
+  let ordinal = 0;
+  for (let current = context.anchor; current < day; current++) {
+    if (due(context.schedule, current, context.anchor, context.weekdays)) ordinal++;
+  }
+  return ordinal;
+}
 function occurrenceForDay(context: RecurrenceContext, day: number, start: number, end: number): GeneratedOccurrence | null {
   if (!isScheduled(context, day)) return null;
   const { schedule, anchor, children, overrides, flexible } = context;
@@ -89,7 +99,7 @@ function occurrenceForDay(context: RecurrenceContext, day: number, start: number
   const moved = exception?.action === 'move' && exception.new_date ? parseDate(exception.new_date) : day;
   const finish = flexible ? moved + 6 : moved;
   if (finish < start || moved > end) return null;
-  const index = schedule.rotation === 'weekly' ? Math.floor((monday(day) - monday(anchor)) / 7) : day - anchor;
+  const index = schedule.rotation === 'weekly' ? Math.floor((monday(day) - monday(anchor)) / 7) : scheduledOrdinal(context, day);
   const assignees = schedule.rotation === 'none' ? [...children] : [children[((index % children.length) + children.length) % children.length]];
   if (exception?.action === 'reassign' && exception.child_id) assignees.splice(0, assignees.length, exception.child_id);
   return {

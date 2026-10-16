@@ -35,6 +35,31 @@ describe('recurrence engine', () => {
       expect(x.filter(v=>v.startsOn==='2027-01-11')[0].assignees).toEqual(['porter']);
     } finally { db.close(); }
   });
+  it('alternates by scheduled occurrence for non-daily weekdays, independent of preview window', () => {
+    const db = fixture({ weekdays: [0, 2, 4], rotation: 'daily', children: ['porter', 'miller'] });
+    try {
+      const range = previewOccurrences(db, 'schedule', '2026-10-12', '2026-10-23');
+      expect(range.map(x => [x.startsOn, x.assignees[0]])).toEqual([
+        ['2026-10-12', 'porter'], ['2026-10-14', 'miller'], ['2026-10-16', 'porter'],
+        ['2026-10-19', 'miller'], ['2026-10-21', 'porter'], ['2026-10-23', 'miller'],
+      ]);
+      expect(previewOccurrences(db, 'schedule', '2026-10-19', '2026-10-23').map(x => x.assignees[0]))
+        .toEqual(['miller', 'porter', 'miller']);
+    } finally { db.close(); }
+  });
+  it('alternates for every N days and retains skipped dates in rotation', () => {
+    const db = fixture({ frequency: 'interval_days', interval: 2, anchor: '2026-10-12',
+      rotation: 'daily', children: ['porter', 'miller'] });
+    try {
+      db.prepare("INSERT INTO occurrence_overrides (id,schedule_id,original_date,action) VALUES ('skip','schedule','2026-10-14','skip')").run();
+      expect(previewOccurrences(db, 'schedule', '2026-10-12', '2026-10-20')
+        .map(x => [x.startsOn, x.assignees[0], x.skipped])).toEqual([
+          ['2026-10-12', 'porter', false], ['2026-10-14', 'miller', true],
+          ['2026-10-16', 'porter', false], ['2026-10-18', 'miller', false],
+          ['2026-10-20', 'porter', false],
+        ]);
+    } finally { db.close(); }
+  });
   it('supports every N days across month boundaries', () => {
     const db=fixture({frequency:'interval_days',interval:3,anchor:'2026-10-30'});
     try { expect(previewOccurrences(db,'schedule','2026-10-30','2026-11-06').map(x=>x.startsOn)).toEqual(['2026-10-30','2026-11-02','2026-11-05']); }

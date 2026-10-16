@@ -61,6 +61,27 @@ for (const count of [1, 2, 3]) {
   });
 }
 
+test('shows first-run setup only for an empty child roster', async ({ page }) => {
+  await page.route('**/api/parent/children', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ children: [] }),
+  }));
+  await page.route('**/api/chores?**', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ today: '2026-10-16', through: '2026-10-22', columns: [] }),
+  }));
+  await page.goto('/');
+  const panel = page.getByRole('region', { name: 'Chores' });
+  await expect(panel.getByRole('link', { name: 'Set up your household' })).toHaveAttribute('href', '/settings');
+  await page.unroute('**/api/parent/children');
+  await page.route('**/api/parent/children', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ children: [{ id: 'alex', name: 'Alex' }] }),
+  }));
+  await page.reload();
+  await expect(panel.getByText("No chores scheduled. Everyone's caught up!")).toBeVisible();
+  await expect(panel.getByRole('link', { name: 'Set up your household' })).toHaveCount(0);
+});
+
 test('shows active child columns', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('region', { name: 'Porter' })).toBeVisible();

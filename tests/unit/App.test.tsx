@@ -82,6 +82,25 @@ describe('Family HQ dashboard', () => {
     expect(screen.queryByRole('button', { name: 'Load more chores' })).toBeNull();
     expect(screen.queryByText(/No chores scheduled/, { selector: '.dashboard > p' })).toBeNull();
   });
+  it('offers setup only when the household has no children', async () => {
+    fetchMock.mockImplementation(async url => String(url) === '/api/parent/children'
+      ? ({ ok: true, json: async () => ({ children: [] }) } as Response)
+      : response({ ...fixture, columns: [] }));
+    render(<App />);
+    const link = await screen.findByRole('link', { name: 'Set up your household' });
+    expect(link).toHaveProperty('pathname', '/settings');
+    expect(screen.getByText("No chores scheduled. Everyone's caught up!")).toBeTruthy();
+  });
+  it('never exposes parent settings when children exist but have no scheduled chores', async () => {
+    fetchMock.mockImplementation(async url => String(url) === '/api/parent/children'
+      ? ({ ok: true, json: async () => ({ children: [{ id: 'alex', name: 'Alex' }] }) } as Response)
+      : response({ ...fixture, columns: [] }));
+    render(<App />);
+    await screen.findByText("No chores scheduled. Everyone's caught up!");
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/parent/children', { signal: expect.any(AbortSignal) }));
+    expect(screen.queryByRole('link', { name: 'Set up your household' })).toBeNull();
+    expect(screen.queryByRole('link', { name: /Parent settings/ })).toBeNull();
+  });
   it('reports a failed dashboard request', async () => {
     fetchMock.mockRejectedValue(new Error('offline'));
     render(<App />);
