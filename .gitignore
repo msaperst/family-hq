@@ -11,3 +11,5 @@ data/
 
 playwright-report/
 test-results/
+
+!.env.production.example
