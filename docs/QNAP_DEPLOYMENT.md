@@ -56,3 +56,13 @@ An external named Docker volume does **not** establish backup protection. SQLite
 - [ ] OAuth secrets never appear in browser responses, image layers, source control, or logs
 - [ ] HTTPS proxy applies appropriate forwarding and ingress restrictions
 - [ ] Backup coverage separately confirmed under issue #3
+
+## Chosen internal hostname and preferred reverse proxy
+
+Internal hostname: `family-hq.home.onemoresaperstone.com`, resolving locally to Niaj (`192.168.0.4`). Configure an Unbound host override in pfSense and ensure upstream-subnet devices use a resolver with the same override if they need this hostname; Cloudflare public DNS need not expose a private A record.
+
+Prefer the **QTS 5.2 built-in reverse proxy**, subject to confirming NAS OS version and an available HTTPS listener port. In **Control Panel → Network & File Services → Network Access → Reverse Proxy**, configure an HTTPS source for the chosen hostname and an HTTP destination `127.0.0.1:3080`. Select a restrictive access-control profile permitting only `192.168.1.0/24` and `192.168.0.0/24`; verify QTS semantics and test with an unauthorized source before relying on them. Reuse the installed `*.home.onemoresaperstone.com` certificate after verifying that QTS itself presents it on the reverse-proxy listener (the existing stunnel synchronization alone is not proof of this).
+
+**Preflight before changing QTS:** check whether QTS administration or another service already occupies TCP 443; do not alter management ports blindly. Also verify that proxying to `127.0.0.1` actually reaches the Docker-published loopback port. If no suitable same-host HTTPS listener is available, compare a dedicated proxy container or another host, adjusting the container bind/network architecture only through a separately reviewed change.
+
+**Application-origin protections:** preserve the incoming `Host` header so legitimate same-origin chore updates work through the proxy. Validate browser calls, and keep remote-client source restrictions in QTS/firewall because the application may only see the proxy's loopback/private address.
