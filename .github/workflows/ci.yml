@@ -109,6 +109,8 @@ jobs:
         run: docker build -t family-hq:ci .
       - name: Validate production Compose manifest
         run: sh scripts/check-production-compose.sh
+      - name: Validate image-only Container Station manifest
+        run: sh scripts/check-container-station-compose.sh
       - name: Start container
         run: docker run -d --name family-hq-ci -e FAMILY_HQ_PORT -p "127.0.0.1:${FAMILY_HQ_PORT}:${FAMILY_HQ_PORT}" family-hq:ci
       - name: Verify health
