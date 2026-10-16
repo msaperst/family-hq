@@ -39,6 +39,14 @@ function validInput(value: unknown): value is ScheduleInput {
 function validChildName(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0 && value.trim().length <= 80;
 }
+function validChildPatch(input: unknown): input is { name?: string; active?: boolean } {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return false;
+  const fields = Object.keys(input);
+  if (fields.length !== 1) return false;
+  const value = input as { name?: unknown; active?: unknown };
+  return fields[0] === 'name' ? validChildName(value.name)
+    : fields[0] === 'active' && typeof value.active === 'boolean';
+}
 export function registerParentApi(app: FastifyInstance, db: DatabaseSync): void {
   app.get('/api/parent/children', () => ({
     children: db.prepare('SELECT id, name, active FROM children ORDER BY name').all(),
@@ -54,10 +62,7 @@ export function registerParentApi(app: FastifyInstance, db: DatabaseSync): void 
   });
   app.patch<{ Params: { id: string }; Body: { name?: string; active?: boolean } }>('/api/parent/children/:id', (request, reply) => {
     const input = request.body;
-    if (!input || typeof input !== 'object' || Array.isArray(input) ||
-      Object.keys(input).length !== 1 ||
-      (input.name === undefined && typeof input.active !== 'boolean') ||
-      (input.name !== undefined && !validChildName(input.name)))
+    if (!validChildPatch(input))
       return reply.code(400).send({ error: 'Provide a valid name or active status' });
     const existing = db.prepare('SELECT id, name, active FROM children WHERE id = ?').get(request.params.id) as
       { id: string; name: string; active: number } | undefined;
