@@ -212,3 +212,11 @@ h1 { font-size: clamp(1.8rem, 4vw, 2.5rem); margin: 0; }
 
 /* One generic chore panel when the initial request has never succeeded. */
 .chores-panel .columns:has(.column[aria-label="Chores"]) { grid-template-columns: 1fr; }
+
+/* Empty households use the same full-height, scroll-contained panel as chore columns. */
+.chore-empty-state {
+  color: #657084;
+  text-align: center;
+  margin: 0;
+  padding: 28px 16px;
+}
