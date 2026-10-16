@@ -29,9 +29,10 @@ export function occursOn(event: FamilyEvent, day: string): boolean {
 }
 export function activeAgenda(events: FamilyEvent[], now: Date): FamilyEvent[] {
   const day = localDay(now);
-  return events.filter(event => event.allDay
-    ? event.end > day
-    : Date.parse(event.end) > now.getTime())
+  return events.filter(event => {
+    if (event.allDay) return event.end > day;
+    return Date.parse(event.end) > now.getTime();
+  })
     .sort((a, b) => {
       const aStart = a.allDay ? a.start + 'T00:00:00-07:00' : a.start;
       const bStart = b.allDay ? b.start + 'T00:00:00-07:00' : b.start;

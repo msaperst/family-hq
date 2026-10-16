@@ -69,7 +69,7 @@ export function App() {
       const response = await fetch(`/api/chores?date=${baseDayRef.current}&more=false`, { signal });
       if (!response.ok) throw new Error('Unable to load chores');
       const result = await response.json() as DashboardResponse;
-      if (!signal?.aborted) { setData(previous => { if (!previous || weeksRef.current === 1 || previous.today !== result.today) return result; const first = new Map(result.columns.map(column => [column.id, column])); return { ...previous, columns: previous.columns.map(column => { const fresh = first.get(column.id); const byId = new Map(column.chores.map(chore => [chore.id + ':' + chore.childId, chore])); for (const chore of fresh?.chores ?? []) byId.set(chore.id + ':' + chore.childId, chore); return { ...column, chores: [...byId.values()] }; }).concat(result.columns.filter(column => !previous.columns.some(existing => existing.id === column.id))) }; }); setError(''); setToday(result.today); }
+      if (!signal?.aborted) { setData(previous => { if (!previous || weeksRef.current === 1 || previous.today !== result.today) { return result; } const first = new Map(result.columns.map(column => [column.id, column])); return { ...previous, columns: previous.columns.map(column => { const fresh = first.get(column.id); const byId = new Map(column.chores.map(chore => [chore.id + ':' + chore.childId, chore])); for (const chore of fresh?.chores ?? []) { byId.set(chore.id + ':' + chore.childId, chore); } return { ...column, chores: [...byId.values()] }; }).concat(result.columns.filter(column => !previous.columns.some(existing => existing.id === column.id))) }; }); setError(''); setToday(result.today); }
     } catch (cause) {
       if (!signal?.aborted) setError(cause instanceof Error ? cause.message : 'Unable to load chores');
     }
@@ -84,7 +84,7 @@ export function App() {
       const response = await fetch(`/api/chores?date=${from}&window=true`);
       if (!response.ok) throw new Error('Unable to load more chores');
       const next = await response.json() as DashboardResponse;
-      setData(previous => { if (!previous) return next; const columns = new Map(previous.columns.map(column => [column.id, { ...column, chores: [...column.chores] }])); for (const column of next.columns) { const existing = columns.get(column.id); if (!existing) { columns.set(column.id, column); continue; } const known = new Set(existing.chores.map(chore => chore.id + ':' + chore.childId)); for (const chore of column.chores) if (!known.has(chore.id + ':' + chore.childId)) { existing.chores.push(chore); known.add(chore.id + ':' + chore.childId); } } return { ...previous, through: next.through, columns: [...columns.values()] }; });
+      setData(previous => { if (!previous) { return next; } const columns = new Map(previous.columns.map(column => [column.id, { ...column, chores: [...column.chores] }])); for (const column of next.columns) { const existing = columns.get(column.id); if (!existing) { columns.set(column.id, column); continue; } const known = new Set(existing.chores.map(chore => chore.id + ':' + chore.childId)); for (const chore of column.chores) { if (!known.has(chore.id + ':' + chore.childId)) { existing.chores.push(chore); known.add(chore.id + ':' + chore.childId); } } } return { ...previous, through: next.through, columns: [...columns.values()] }; });
       weeksRef.current += 1;
       setLoadedWeeks(weeksRef.current);
     } catch { setMoreError(true); }
@@ -159,7 +159,7 @@ export function App() {
             })}
           </section>;
         })}
-        {loadingMore && <p role="status" className="calendar-empty">Loading more chores…</p>}
+        {loadingMore && <output className="calendar-empty">Loading more chores…</output>}
         {moreError && <button type="button" className="agenda-more" onClick={() => void loadMore()}>Retry loading chores</button>}
         {data && loadedWeeks < MAX_WEEKS && !loadingMore && !moreError && <button type="button" className="agenda-more" onClick={() => void loadMore()}>Load more chores</button>}
         </div>

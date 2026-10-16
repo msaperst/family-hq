@@ -15,6 +15,23 @@ export function children(db: DatabaseSync): ChildResponse[] {
   return db.prepare('SELECT id, name FROM children WHERE active = 1 ORDER BY name').all() as unknown as ChildResponse[];
 }
 interface OccurrenceRow { id: string; name: string; starts_on: string; due_on: string; mode: DashboardChore['mode']; child_id: string; completed: number }
+function assignOccurrences(rows: OccurrenceRow[], columns: Map<string, DashboardColumn>, shared: DashboardColumn): void {
+  const seenShared = new Set<string>();
+  for (const row of rows) {
+    const isShared = row.mode === 'either';
+    if (isShared && seenShared.has(row.id)) continue;
+    if (isShared) seenShared.add(row.id);
+    const target = isShared ? shared : columns.get(row.child_id);
+    // SQL joins active children, which should also be keys of columns.
+    // Preserve the invariant explicitly for TypeScript and unexpected DB inconsistencies.
+    if (!target) throw new Error('Active child missing from dashboard columns: ' + row.child_id);
+    target.chores.push({
+      id: row.id, name: row.name, startsOn: row.starts_on, dueOn: row.due_on,
+      mode: row.mode, childId: isShared ? null : row.child_id, completed: row.completed === 1,
+    });
+  }
+}
+
 export function dashboard(db: DatabaseSync, today: string, extraDays = 0, includeOverdue = true): DashboardResponse {
   const through = dateOffset(today, 6 + extraDays);
   // Generate only the requested horizon. Previously generated incomplete occurrences
@@ -40,19 +57,6 @@ export function dashboard(db: DatabaseSync, today: string, extraDays = 0, includ
   const columns = new Map<string, DashboardColumn>();
   for (const child of active) columns.set(child.id, { id: child.id, name: child.name, chores: [] });
   const shared: DashboardColumn = { id: 'either', name: 'Either child', chores: [] };
-  const seenShared = new Set<string>();
-  for (const row of rows) {
-    const isShared = row.mode === 'either';
-    if (isShared && seenShared.has(row.id)) continue;
-    if (isShared) seenShared.add(row.id);
-    const target = isShared ? shared : columns.get(row.child_id);
-    // SQL joins active children, which should also be keys of columns.
-    // Preserve the invariant explicitly for TypeScript and unexpected DB inconsistencies.
-    if (!target) throw new Error('Active child missing from dashboard columns: ' + row.child_id);
-    target.chores.push({
-      id: row.id, name: row.name, startsOn: row.starts_on, dueOn: row.due_on,
-      mode: row.mode, childId: isShared ? null : row.child_id, completed: row.completed === 1,
-    });
-  }
+  assignOccurrences(rows, columns, shared);
   return { today, through, columns: [...columns.values()].filter(x => x.chores.length > 0).concat(shared.chores.length ? [shared] : []) };
 }
