@@ -20,14 +20,32 @@ export function isTrustedLanAddress(ip: string): boolean {
   return /^f[cd][0-9a-f]{2}:/i.test(address);
 }
 export function registerChoreApi(app: FastifyInstance, db: DatabaseSync): void {
-  registerParentApi(app, db);
   app.addHook('onRequest', (request, reply, done) => {
     if (request.url.startsWith('/api/') && request.url !== '/api/health' && !isTrustedLanAddress(request.ip)) {
       void reply.code(403).send({ error: 'Household LAN access only' });
       return;
     }
+    if (request.url.startsWith('/api/') && !['GET', 'HEAD', 'OPTIONS'].includes(request.method)) {
+      // A browser must not be able to mutate the household API from another site.
+      // Compare hostnames rather than ports: Vite's local dev proxy uses a separate port.
+      const origin = request.headers.origin;
+      if (origin) {
+        try {
+          const parsed = new URL(origin);
+          const host = request.headers.host?.split(':')[0]?.toLowerCase();
+          if (!['http:', 'https:'].includes(parsed.protocol) || parsed.hostname.toLowerCase() !== host) {
+            void reply.code(403).send({ error: 'Cross-origin mutation denied' });
+            return;
+          }
+        } catch {
+          void reply.code(403).send({ error: 'Invalid origin' });
+          return;
+        }
+      }
+    }
     done();
   });
+  registerParentApi(app, db);
   app.get('/api/children', () => ({ children: children(db) }));
   app.get<{ Querystring: { date?: string; more?: string; window?: string } }>('/api/chores', (request, reply) => {
     const { date, more, window } = request.query;
