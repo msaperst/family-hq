@@ -18,7 +18,7 @@ describe('Google Calendar read-only integration', () => {
   it('refreshes token, paginates events, caches and serves stale data on Google failures', async () => {
     let time = 0;
     const request = vi.fn(async (url: string | URL) => {
-      if (String(url).includes('oauth2.googleapis.com')) return new Response(JSON.stringify({ access_token: 'access', expires_in: 3600 }), { status: 200 });
+      if (new URL(String(url)).origin === 'https://oauth2.googleapis.com') return new Response(JSON.stringify({ access_token: 'access', expires_in: 3600 }), { status: 200 });
       if (time > 300_000) return new Response('unavailable', { status: 429 });
       const token = new URL(String(url)).searchParams.get('pageToken');
       return new Response(JSON.stringify(token ? { items: [{ id: 'b', start: { date: '2026-10-16' }, end: { date: '2026-10-17' } }] } :
@@ -57,9 +57,9 @@ describe('Google Calendar read-only integration', () => {
   });
   it.each([401, 403, 429, 500])('rejects Google events HTTP %i without cached data', async status => {
     const request = vi.fn(async (url: string | URL) =>
-      new Response(String(url).includes('oauth2.googleapis.com')
+      new Response(new URL(String(url)).origin === 'https://oauth2.googleapis.com'
         ? JSON.stringify({ access_token: 'access' }) : 'failure',
-      { status: String(url).includes('oauth2.googleapis.com') ? 200 : status }));
+      { status: new URL(String(url)).origin === 'https://oauth2.googleapis.com' ? 200 : status }));
     const calendar = new GoogleCalendar(settings, request as typeof fetch);
     await expect(calendar.events('start', 'end')).rejects.toThrow('events request failed');
   });
@@ -72,7 +72,7 @@ describe('Google Calendar read-only integration', () => {
   });
   it('rejects pagination overflow without publishing a partial cache', async () => {
     const request = vi.fn(async (url: string | URL) =>
-      new Response(JSON.stringify(String(url).includes('oauth2.googleapis.com')
+      new Response(JSON.stringify(new URL(String(url)).origin === 'https://oauth2.googleapis.com'
         ? { access_token: 'access' } : { items: [], nextPageToken: 'again' }), { status: 200 }));
     const calendar = new GoogleCalendar(settings, request as typeof fetch);
     await expect(calendar.events('start', 'end')).rejects.toThrow('pagination limit exceeded');
@@ -80,9 +80,9 @@ describe('Google Calendar read-only integration', () => {
   });
   it('returns a sanitized 503 from the HTTP endpoint when Google fails', async () => {
     const request = vi.fn(async (url: string | URL) =>
-      new Response(String(url).includes('oauth2.googleapis.com')
+      new Response(new URL(String(url)).origin === 'https://oauth2.googleapis.com'
         ? JSON.stringify({ access_token: 'access' }) : 'secret diagnostic',
-      { status: String(url).includes('oauth2.googleapis.com') ? 200 : 503 }));
+      { status: new URL(String(url)).origin === 'https://oauth2.googleapis.com' ? 200 : 503 }));
     const app = buildApp();
     registerCalendarApi(app, new GoogleCalendar(settings, request as typeof fetch));
     try {
