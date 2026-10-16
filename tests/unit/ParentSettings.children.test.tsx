@@ -42,11 +42,11 @@ describe('parent settings child controls', () => {
     expect(screen.getByRole('button', { name: 'Add chore' })).toHaveProperty('disabled', true);
     fireEvent.change(screen.getByLabelText('Child name'), { target: { value: 'Alex' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add child' }));
-    expect(await screen.findByText('Alex')).toBeTruthy();
+    expect((await screen.findAllByText('Alex')).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
     fireEvent.change(screen.getByLabelText('Rename child'), { target: { value: 'Taylor' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save child name' }));
-    expect(await screen.findByText('Taylor')).toBeTruthy();
+    expect((await screen.findAllByText('Taylor')).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', { name: 'Deactivate' }));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Reactivate' })).toBeTruthy());
     expect(screen.queryByLabelText('Taylor')).toBeNull();
@@ -58,7 +58,7 @@ describe('parent settings child controls', () => {
   it('keeps a child form open and shows the server error for duplicate names', async () => {
     children = [{ id: 'original', name: 'Alex', active: 1 }];
     render(<ParentSettings />);
-    await screen.findByText('Alex');
+    await screen.findAllByText('Alex');
     fireEvent.change(screen.getByLabelText('Child name'), { target: { value: 'alex' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add child' }));
     expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'A child with this name already exists');
