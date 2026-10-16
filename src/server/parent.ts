@@ -70,15 +70,33 @@ export function registerParentApi(app: FastifyInstance, db: DatabaseSync): void 
       return { id: existing.id, name, active: Boolean(existing.active) };
     }
     if (input.active === false && existing.active) {
-      // Inactive children disappear from the dashboard. Preserve existing assignments and history.
-      for (const table of ['schedule_assignees', 'occurrence_assignees', 'chore_completions', 'completion_events', 'occurrence_overrides']) {
-        const column = table === 'chore_completions' || table === 'completion_events' ? 'performed_by' : 'child_id';
-        if (db.prepare(`SELECT 1 FROM ${table} WHERE ${column} = ? LIMIT 1`).get(existing.id))
-          return reply.code(409).send({ error: 'Child has existing assignments or completion history and cannot be deactivated' });
-      }
+      const activeSchedule = db.prepare(`SELECT 1 FROM schedule_assignees a
+        JOIN chore_schedules s ON s.id = a.schedule_id
+        WHERE a.child_id = ? AND s.paused = 0 LIMIT 1`).get(existing.id);
+      if (activeSchedule) return reply.code(409).send({
+        error: 'Pause or reassign active schedules before deactivating this child',
+      });
     }
     db.prepare('UPDATE children SET active = ? WHERE id = ?').run(Number(input.active), existing.id);
     return { id: existing.id, name: existing.name, active: input.active };
+  });
+  app.delete<{ Params: { id: string } }>('/api/parent/children/:id', (request, reply) => {
+    const id = request.params.id;
+    if (!db.prepare('SELECT id FROM children WHERE id = ?').get(id))
+      return reply.code(404).send({ error: 'Child not found' });
+    // Deletion is only safe for unused child records; historical data must be retained.
+    const references: [string, string][] = [
+      ['schedule_assignees', 'child_id'],
+      ['occurrence_assignees', 'child_id'],
+      ['chore_completions', 'performed_by'],
+      ['completion_events', 'performed_by'],
+      ['occurrence_overrides', 'child_id'],
+    ];
+    if (references.some(([table, column]) =>
+      db.prepare(`SELECT 1 FROM ${table} WHERE ${column} = ? LIMIT 1`).get(id)))
+      return reply.code(409).send({ error: 'This child has chore history or assignments; deactivate instead of deleting' });
+    db.prepare('DELETE FROM children WHERE id = ?').run(id);
+    return reply.code(204).send();
   });
   app.get('/api/parent/schedules', () => {
     const rows = db.prepare(`SELECT s.*, c.name FROM chore_schedules s
