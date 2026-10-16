@@ -143,7 +143,7 @@ export function App() {
         return <section className="column" key={column.id} aria-label={column.name}>
         <div className="column-heading"><h2>{column.name}</h2><p>{choresForColumn.filter(chore => chore.completed).length} completed</p></div>
         <div className="column-body" onScroll={onChoreScroll}>
-        {data?.columns.length === 0 && <p className="chore-empty-state"><span>No chores scheduled. Everyone's caught up!</span> <a href="/settings">Set up children and chores</a></p>}
+        {data?.columns.length === 0 && <><p className="chore-empty-state">No chores scheduled. Everyone's caught up!</p><p className="chore-setup-link"><a href="/settings">Set up children and chores</a></p></>}
         {error && <p role="alert" className="panel-error">{data ? "Showing saved chores — unable to refresh" : "Unable to load chores"}</p>}
         {completionError && <p role="alert" className="panel-error">{completionError}</p>}
         {groups.map(group => {
