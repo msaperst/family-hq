@@ -19,6 +19,18 @@ test('adds and renames a child, then assigns a chore through Parent Settings', a
   await expect(page.getByRole('region', { name: 'Taylor' }).getByText('Sort books').first()).toBeVisible();
 });
 
+test('deletes an unused child after confirmation', async ({ page }) => {
+  await page.goto('/settings');
+  await page.getByLabel('Child name').fill('Temporary');
+  await page.getByRole('button', { name: 'Add child' }).click();
+  const childRow = page.locator('.settings-panel').filter({ has: page.getByRole('heading', { name: 'Children' }) })
+    .locator('.schedule-list li').filter({ hasText: 'Temporary' });
+  await expect(childRow).toBeVisible();
+  page.once('dialog', dialog => void dialog.accept());
+  await childRow.getByRole('button', { name: 'Delete' }).click();
+  await expect(childRow).toHaveCount(0);
+});
+
 test('creates a recurring chore and displays it on the dashboard', async ({ page }) => {
   await page.goto('/settings');
   await expect(page.getByRole('heading', { name: 'Parent settings', exact: false })).toBeVisible();
