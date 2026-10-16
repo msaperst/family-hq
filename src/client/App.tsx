@@ -67,7 +67,7 @@ export function App() {
   }, [undoEntries]);
   useEffect(() => {
     const controller = new AbortController();
-    void fetch('/api/children', { signal: controller.signal })
+    void fetch('/api/parent/children', { signal: controller.signal })
       .then(async response => {
         if (!response.ok) return;
         const result = await response.json() as { children: { id: string }[] };
