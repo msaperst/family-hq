@@ -32,6 +32,39 @@ beforeEach(() => {
     return ok({ schedules: [] });
   });
   vi.stubGlobal('fetch', fetchMock);
+
+});
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.resetAllMocks(); });
+
+describe('parent settings child controls', () => {
+  it('starts with no children, then creates, renames, deactivates and reactivates a child', async () => {
+    render(<ParentSettings />);
+    expect(await screen.findByText('No children yet. Add a child to get started.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Add chore' })).toHaveProperty('disabled', true);
+    fireEvent.change(screen.getByLabelText('Child name'), { target: { value: 'Alex' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add child' }));
+    expect((await screen.findAllByText('Alex')).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
+    fireEvent.change(screen.getByLabelText('Rename child'), { target: { value: 'Taylor' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save child name' }));
+    expect((await screen.findAllByText('Taylor')).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Deactivate' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Reactivate' })).toBeTruthy());
+    expect(screen.queryByLabelText('Taylor')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Reactivate' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Deactivate' })).toBeTruthy());
+    expect(screen.getByLabelText('Taylor')).toBeTruthy();
+  });
+
+  it('keeps a child form open and shows the server error for duplicate names', async () => {
+    children = [{ id: 'original', name: 'Alex', active: 1 }];
+    render(<ParentSettings />);
+    await screen.findAllByText('Alex');
+    fireEvent.change(screen.getByLabelText('Child name'), { target: { value: 'alex' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add child' }));
+    expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'A child with this name already exists');
+    expect(screen.getByLabelText('Child name')).toHaveProperty('value', 'alex');
+  });
   it('cancels renaming without saving or changing the original name', async () => {
     children = [{ id: 'original', name: 'Alex', active: 1 }];
     render(<ParentSettings />);
@@ -70,36 +103,4 @@ beforeEach(() => {
     expect(fetchMock.mock.calls.filter(call => call[1]?.method === 'DELETE')).toHaveLength(0);
   });
 
-});
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.resetAllMocks(); });
-
-describe('parent settings child controls', () => {
-  it('starts with no children, then creates, renames, deactivates and reactivates a child', async () => {
-    render(<ParentSettings />);
-    expect(await screen.findByText('No children yet. Add a child to get started.')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Add chore' })).toHaveProperty('disabled', true);
-    fireEvent.change(screen.getByLabelText('Child name'), { target: { value: 'Alex' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Add child' }));
-    expect((await screen.findAllByText('Alex')).length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
-    fireEvent.change(screen.getByLabelText('Rename child'), { target: { value: 'Taylor' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save child name' }));
-    expect((await screen.findAllByText('Taylor')).length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole('button', { name: 'Deactivate' }));
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Reactivate' })).toBeTruthy());
-    expect(screen.queryByLabelText('Taylor')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Reactivate' }));
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Deactivate' })).toBeTruthy());
-    expect(screen.getByLabelText('Taylor')).toBeTruthy();
-  });
-
-  it('keeps a child form open and shows the server error for duplicate names', async () => {
-    children = [{ id: 'original', name: 'Alex', active: 1 }];
-    render(<ParentSettings />);
-    await screen.findAllByText('Alex');
-    fireEvent.change(screen.getByLabelText('Child name'), { target: { value: 'alex' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Add child' }));
-    expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'A child with this name already exists');
-    expect(screen.getByLabelText('Child name')).toHaveProperty('value', 'alex');
-  });
 });
