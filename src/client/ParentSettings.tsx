@@ -82,6 +82,16 @@ export function ParentSettings() {
       } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to save child'); }
     });
   }
+  async function deleteChild(child: Child) {
+    if (!window.confirm('Permanently delete ' + child.name + '? This is only available for children without chore history or assignments.')) return;
+    await runMutation(async () => {
+      try {
+        const response = await fetch('/api/parent/children/' + encodeURIComponent(child.id), { method: 'DELETE' });
+        if (!response.ok) throw new Error((await response.json() as { error?: string }).error ?? 'Unable to delete child');
+        await load();
+      } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to delete child'); }
+    });
+  }
   async function changeChildStatus(child: Child) {
     await runMutation(async () => {
       try {
@@ -183,13 +193,14 @@ export function ParentSettings() {
     {error && <p role="alert" className="error">{error}</p>}
     <section className="settings-panel">
       <h2>Children</h2>
-      <p>Add children before assigning chores. Names can be changed without losing existing history.</p>
+      <p>Add children before assigning chores. Deactivate children assigned only to paused schedules; delete is available only when no assignments or history exist.</p>
       {managedChildren.length === 0 && <p>No children yet. Add a child to get started.</p>}
       <ul className="schedule-list">{managedChildren.map(child => <li key={child.id}>
         <span><strong>{child.name}</strong>{!Boolean(child.active) && ' (Inactive)'}</span>
         <div className="schedule-actions">
           <button type="button" disabled={busy} onClick={() => { setEditingChildId(child.id); setEditingChildName(child.name); }}>Rename</button>
           <button type="button" disabled={busy} onClick={() => void changeChildStatus(child)}>{Boolean(child.active) ? 'Deactivate' : 'Reactivate'}</button>
+          <button type="button" disabled={busy} onClick={() => void deleteChild(child)}>Delete</button>
         </div>
       </li>)}</ul>
       <form className="settings-form" onSubmit={event => void saveChild(event)}>
