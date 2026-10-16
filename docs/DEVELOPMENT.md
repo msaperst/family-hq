@@ -2,7 +2,7 @@
 
 ## Workflow
 
-Work in scoped feature branches and submit pull requests into `main`. Keep production code, tests and documentation together. Do not change existing NAS backup/network infrastructure as part of an unrelated app change.
+Work in scoped feature branches and submit pull requests into `main`. Keep production code, tests and documentation together. Keep NAS backup/network infrastructure in the private Home Lab repository; application code, tests, and documentation live here.
 
 ## Prerequisites
 
@@ -66,7 +66,7 @@ Compose binds to host loopback only and is not a QNAP production deployment.
 
 ## Continuous integration and security checks
 
-The workflow at `.github/workflows/family-hq.yml` runs for pull requests and pushes to `main` when Family HQ application files or its CI configuration change. Run the local verification commands above before pushing, especially in this private repository where GitHub Actions minutes are limited.
+The workflow at `.github/workflows/ci.yml` runs for pull requests and pushes to `main` for pull requests and pushes to `main`. Run the local verification commands above before pushing, especially in this private repository where GitHub Actions minutes are limited.
 
 CI requires:
 - **Source hygiene:** `npm run lint` checks line endings, trailing whitespace and indentation. It does not perform semantic JavaScript/TypeScript linting.
@@ -78,9 +78,9 @@ CI requires:
 
 ### SonarQube configuration
 
-Use `family-hq/sonar-project.properties` to configure sources, tests and coverage. The SonarCloud project key is `msaperst_home-lab` under organization `msaperst`.
+Use `family-hq/sonar-project.properties` to configure sources, tests and coverage. The SonarCloud project key is `msaperst_family-hq` under organization `msaperst`.
 
-Set the repository Actions secret `SONAR_TOKEN` to a SonarCloud analysis token. Configure the project quality gate and GitHub PR integration in SonarCloud. Keep tokens out of source control and example environment files.
+Create and configure the separate Family HQ project in SonarCloud, then set the repository Actions secret `SONAR_TOKEN` to a SonarCloud analysis token. Configure the project quality gate and GitHub PR integration in SonarCloud. Keep tokens out of source control and example environment files.
 
 ### Required pull request checks
 

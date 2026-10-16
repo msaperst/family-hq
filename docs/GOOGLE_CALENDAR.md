@@ -1,6 +1,6 @@
 # Google Calendar integration (issue #11)
 
-Family HQ reads the existing shared family calendar **server-side**. It never creates, updates, or deletes Google events. The browser only calls `GET /api/calendar/events?from=YYYY-MM-DD&to=YYYY-MM-DD`; `to` is exclusive. Maximum window: 90 days. Events preserve Google-provided offsets and all-day exclusive end dates. The UI in issue #12 will render these in America/Phoenix.
+Family HQ reads the existing shared family calendar **server-side**. It never creates, updates, or deletes Google events. The browser only calls `GET /api/calendar/events?from=YYYY-MM-DD&to=YYYY-MM-DD`; `to` is exclusive. Maximum window: 90 days. Events preserve Google-provided offsets and all-day exclusive end dates. The dashboard renders these in America/Phoenix.
 
 ## One-time OAuth setup
 

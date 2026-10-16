@@ -1,11 +1,11 @@
 # Family HQ architecture
 
-**Status:** approved design (2026-10-13); not yet implemented.  
+**Status:** application implemented through unified calendar and chore dashboard; production deployment pending.  
 **Decision record:** [#2](https://github.com/msaperst/home-lab/issues/2).
 
 ## Context and principles
 
-Use the existing `home-lab` repository and QNAP infrastructure without reorganizing unrelated network and backup directories. Adopt the engineering practices from `saperstone-studios` (small feature branches, PRs, tests, CI and security checks), but use tooling appropriate to TypeScript rather than copying PHP workflows.
+Maintain Family HQ as a standalone application repository; the QNAP infrastructure and its private configuration remain in `home-lab`. Adopt the engineering practices from `saperstone-studios` (small feature branches, PRs, tests, CI and security checks), but use tooling appropriate to TypeScript rather than copying PHP workflows.
 
 Prefer one deployable application over multiple services until there is a demonstrated need.
 
@@ -85,9 +85,9 @@ Use API persistence and immediate UI feedback. Start with lightweight polling fo
 
 - Final database library and native dependency packaging: #6 and #13.
 - Spreadsheet rotation semantics: #5.
-- Production image architecture, NAS volume path and HTTPS routing: #13.
-- Deployment credentials, release and rollback automation: #14.
-- Backup retention and tested restoration: #15.
-- Alexa security and skill hosting: #16.
+- Production image architecture, NAS volume path and HTTPS routing: #1.
+- Deployment credentials, release and rollback automation: #2.
+- Backup retention and tested restoration: #3.
+- Alexa security and skill hosting: #4.
 
 Update this document when implementation validates or changes a decision.
