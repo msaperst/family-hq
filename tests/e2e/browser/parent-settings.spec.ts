@@ -28,7 +28,7 @@ test('edits and pauses a recurring chore without changing completed history', as
   await page.goto('/settings');
   await page.locator('.schedule-list li').filter({ hasText: 'Tidy bedroom' }).first().getByRole('button', { name: 'Resume' }).click();
   await page.goto('/');
-  await expect(page.getByText('Tidy bedroom')).toBeVisible();
+  await expect(page.getByText('Tidy bedroom').first()).toBeVisible();
 });
 
 test('skips and restores one occurrence without changing the weekly rule', async ({ page }) => {
