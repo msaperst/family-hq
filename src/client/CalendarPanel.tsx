@@ -12,6 +12,14 @@ const TIME_ZONE = 'America/Phoenix';
 function localDay(date: Date): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
 }
+function calendarUrl(from: string, to: string): string {
+  // Both dates must be calendar dates, never arbitrary URL fragments.
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+    throw new Error('Invalid calendar date');
+  }
+  return `/api/calendar/events?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+}
+
 function addDays(day: string, days: number): string {
   return new Date(Date.parse(day + 'T00:00:00Z') + days * 86_400_000).toISOString().slice(0, 10);
 }
@@ -68,7 +76,7 @@ export function CalendarPanel({ today }: Readonly<{ today: string }>) {
     setStatus('loading');
     const load = async () => {
       try {
-        const response = await fetch('/api/calendar/events?from=' + today + '&to=' + addDays(today, 7), { signal: controller.signal });
+        const response = await fetch(calendarUrl(today, addDays(today, 7)), { signal: controller.signal });
         if (!response.ok) throw new Error('Calendar unavailable');
         const result = await response.json() as { events: FamilyEvent[]; stale: boolean };
         if (!Array.isArray(result?.events)) throw new Error('Invalid calendar response');
@@ -99,7 +107,7 @@ export function CalendarPanel({ today }: Readonly<{ today: string }>) {
     const from = addDays(today, daysRef.current);
     const nextDays = Math.min(7, MAX_DAYS - daysRef.current);
     try {
-      const response = await fetch('/api/calendar/events?from=' + from + '&to=' + addDays(from, nextDays));
+      const response = await fetch(calendarUrl(from, addDays(from, nextDays)));
       if (!response.ok) throw new Error('Could not load more events');
       const result = await response.json() as { events: FamilyEvent[]; stale: boolean };
       if (!Array.isArray(result?.events)) throw new Error('Invalid calendar response');

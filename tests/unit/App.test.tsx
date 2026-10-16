@@ -495,7 +495,7 @@ describe('chore pagination edge cases', () => {
     for (let week = 1; week < 13; week++) {
       const button = screen.getAllByRole('button', { name: 'Load more chores' })[0];
       fireEvent.click(button);
-      await waitFor(() => expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('window=true')).length).toBe(week));
+      await waitFor(() => expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('window=true'))).toHaveLength(week));
       if (week < 12) await waitFor(() => expect(screen.getAllByRole('button', { name: 'Load more chores' }).length).toBeGreaterThan(0));
     }
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Load more chores' })).toBeNull());
