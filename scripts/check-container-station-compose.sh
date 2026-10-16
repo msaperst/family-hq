@@ -12,4 +12,4 @@ if grep -Eq '^[[:space:]]*(build:|privileged:)' "$file"; then
   echo "Container Station manifest must use a prebuilt nonprivileged image" >&2
   exit 1
 fi
-docker compose -f "$file" config --quiet
+docker compose -f "$file" config --no-env-resolution --quiet
