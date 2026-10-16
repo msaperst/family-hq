@@ -36,7 +36,50 @@ function validInput(value: unknown): value is ScheduleInput {
     (v.rotation === 'none' || v.mode === 'individual') &&
     (v.frequency !== 'weekly' || v.weekdays.length > 0 || v.intervalCount === 1);
 }
+function validChildName(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0 && value.trim().length <= 80;
+}
 export function registerParentApi(app: FastifyInstance, db: DatabaseSync): void {
+  app.get('/api/parent/children', () => ({
+    children: db.prepare('SELECT id, name, active FROM children ORDER BY name').all(),
+  }));
+  app.post<{ Body: { name?: string } }>('/api/parent/children', (request, reply) => {
+    if (!validChildName(request.body?.name)) return reply.code(400).send({ error: 'Enter a name (80 characters or fewer)' });
+    const name = request.body.name.trim();
+    if (db.prepare('SELECT id FROM children WHERE name = ? COLLATE NOCASE').get(name))
+      return reply.code(409).send({ error: 'A child with this name already exists' });
+    const id = randomUUID();
+    db.prepare('INSERT INTO children (id, name) VALUES (?, ?)').run(id, name);
+    return reply.code(201).send({ id, name, active: true });
+  });
+  app.patch<{ Params: { id: string }; Body: { name?: string; active?: boolean } }>('/api/parent/children/:id', (request, reply) => {
+    const input = request.body;
+    if (!input || typeof input !== 'object' || Array.isArray(input) ||
+      Object.keys(input).length !== 1 ||
+      (input.name === undefined && typeof input.active !== 'boolean') ||
+      (input.name !== undefined && !validChildName(input.name)))
+      return reply.code(400).send({ error: 'Provide a valid name or active status' });
+    const existing = db.prepare('SELECT id, name, active FROM children WHERE id = ?').get(request.params.id) as
+      { id: string; name: string; active: number } | undefined;
+    if (!existing) return reply.code(404).send({ error: 'Child not found' });
+    if (input.name !== undefined) {
+      const name = input.name.trim();
+      if (db.prepare('SELECT id FROM children WHERE name = ? COLLATE NOCASE AND id != ?').get(name, existing.id))
+        return reply.code(409).send({ error: 'A child with this name already exists' });
+      db.prepare('UPDATE children SET name = ? WHERE id = ?').run(name, existing.id);
+      return { id: existing.id, name, active: Boolean(existing.active) };
+    }
+    if (input.active === false && existing.active) {
+      // Inactive children disappear from the dashboard. Preserve existing assignments and history.
+      for (const table of ['schedule_assignees', 'occurrence_assignees', 'chore_completions', 'completion_events', 'occurrence_overrides']) {
+        const column = table === 'chore_completions' || table === 'completion_events' ? 'performed_by' : 'child_id';
+        if (db.prepare(`SELECT 1 FROM ${table} WHERE ${column} = ? LIMIT 1`).get(existing.id))
+          return reply.code(409).send({ error: 'Child has existing assignments or completion history and cannot be deactivated' });
+      }
+    }
+    db.prepare('UPDATE children SET active = ? WHERE id = ?').run(Number(input.active), existing.id);
+    return { id: existing.id, name: existing.name, active: input.active };
+  });
   app.get('/api/parent/schedules', () => {
     const rows = db.prepare(`SELECT s.*, c.name FROM chore_schedules s
       JOIN chores c ON c.id = s.chore_id ORDER BY c.name, s.id`).all();
