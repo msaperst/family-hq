@@ -133,16 +133,16 @@ export function App() {
       <div><h1>Family HQ</h1><p>{new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', dateStyle: 'full' }).format(new Date(today + 'T00:00:00Z'))}</p></div>
 
     </header>
-    {data?.columns.length === 0 && <p className="empty">No chores scheduled. Everyone's caught up!</p>}
     <div className="dashboard-content"><div className="chores-panel">
     {!data && !error && <p>Loading chores…</p>}
     {(data || error) && <div className="columns">
-      {(data?.columns ?? [{ id: "chores", name: "Chores", chores: [] }]).map(column => {
+      {(data?.columns.length ? data.columns : [{ id: "chores", name: "Chores", chores: [] }]).map(column => {
         const retained = undoEntries.filter(entry => entry.columnId === column.id && entry.expiresAt > Date.now() && !column.chores.some(chore => chore.id === entry.chore.id));
         const choresForColumn = [...column.chores.map(chore => undoEntries.some(entry => entry.chore.id === chore.id) ? { ...chore, completed: true } : chore), ...retained.map(entry => entry.chore)];
         return <section className="column" key={column.id} aria-label={column.name}>
         <div className="column-heading"><h2>{column.name}</h2><p>{choresForColumn.filter(chore => chore.completed).length} completed</p></div>
         <div className="column-body" onScroll={onChoreScroll}>
+        {data?.columns.length === 0 && <p className="chore-empty-state">No chores scheduled. Everyone\'s caught up!</p>}
         {error && <p role="alert" className="panel-error">{data ? "Showing saved chores — unable to refresh" : "Unable to load chores"}</p>}
         {completionError && <p role="alert" className="panel-error">{completionError}</p>}
         {groups.map(group => {
@@ -161,7 +161,7 @@ export function App() {
         })}
         {loadingMore && <output className="calendar-empty">Loading more chores…</output>}
         {moreError && <button type="button" className="agenda-more" onClick={() => void loadMore()}>Retry loading chores</button>}
-        {data && loadedWeeks < MAX_WEEKS && !loadingMore && !moreError && <button type="button" className="agenda-more" onClick={() => void loadMore()}>Load more chores</button>}
+        {data && data.columns.length > 0 && loadedWeeks < MAX_WEEKS && !loadingMore && !moreError && <button type="button" className="agenda-more" onClick={() => void loadMore()}>Load more chores</button>}
         </div>
       </section>; })}
     </div>}
