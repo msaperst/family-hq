@@ -32,6 +32,44 @@ beforeEach(() => {
     return ok({ schedules: [] });
   });
   vi.stubGlobal('fetch', fetchMock);
+  it('cancels renaming without saving or changing the original name', async () => {
+    children = [{ id: 'original', name: 'Alex', active: 1 }];
+    render(<ParentSettings />);
+    await screen.findAllByText('Alex');
+    fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
+    fireEvent.change(screen.getByLabelText('Rename child'), { target: { value: 'Taylor' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.getByLabelText('Child name')).toHaveProperty('value', '');
+    expect(screen.getAllByText('Alex').length).toBeGreaterThan(0);
+    expect(fetchMock.mock.calls.filter(call => call[1]?.method === 'PATCH')).toHaveLength(0);
+  });
+
+  it('retains a child and shows an error when a status update fails', async () => {
+    children = [{ id: 'original', name: 'Alex', active: 1 }];
+    const previous = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (url, options) => {
+      if (String(url) === '/api/parent/children/original' && options?.method === 'PATCH')
+        return ok({ error: 'Pause or reassign active schedules before deactivating this child' }, 409);
+      return previous(url, options);
+    });
+    render(<ParentSettings />);
+    await screen.findAllByText('Alex');
+    fireEvent.click(screen.getByRole('button', { name: 'Deactivate' }));
+    expect(await screen.findByRole('alert')).toHaveProperty(
+      'textContent', 'Pause or reassign active schedules before deactivating this child',
+    );
+    expect(screen.getByRole('button', { name: 'Deactivate' })).toBeTruthy();
+  });
+
+  it('does not delete a child when confirmation is declined', async () => {
+    children = [{ id: 'original', name: 'Alex', active: 1 }];
+    vi.stubGlobal('confirm', vi.fn(() => false));
+    render(<ParentSettings />);
+    await screen.findAllByText('Alex');
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    expect(fetchMock.mock.calls.filter(call => call[1]?.method === 'DELETE')).toHaveLength(0);
+  });
+
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.resetAllMocks(); });
 
