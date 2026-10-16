@@ -36,7 +36,73 @@ function validInput(value: unknown): value is ScheduleInput {
     (v.rotation === 'none' || v.mode === 'individual') &&
     (v.frequency !== 'weekly' || v.weekdays.length > 0 || v.intervalCount === 1);
 }
+function validChildName(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0 && value.trim().length <= 80;
+}
+function validChildPatch(input: unknown): input is { name?: string; active?: boolean } {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return false;
+  const fields = Object.keys(input);
+  if (fields.length !== 1) return false;
+  const value = input as { name?: unknown; active?: unknown };
+  return fields[0] === 'name' ? validChildName(value.name)
+    : fields[0] === 'active' && typeof value.active === 'boolean';
+}
 export function registerParentApi(app: FastifyInstance, db: DatabaseSync): void {
+  app.get('/api/parent/children', () => ({
+    children: db.prepare('SELECT id, name, active FROM children ORDER BY name').all(),
+  }));
+  app.post<{ Body: { name?: string } }>('/api/parent/children', (request, reply) => {
+    if (!validChildName(request.body?.name)) return reply.code(400).send({ error: 'Enter a name (80 characters or fewer)' });
+    const name = request.body.name.trim();
+    if (db.prepare('SELECT id FROM children WHERE name = ? COLLATE NOCASE').get(name))
+      return reply.code(409).send({ error: 'A child with this name already exists' });
+    const id = randomUUID();
+    db.prepare('INSERT INTO children (id, name) VALUES (?, ?)').run(id, name);
+    return reply.code(201).send({ id, name, active: true });
+  });
+  app.patch<{ Params: { id: string }; Body: { name?: string; active?: boolean } }>('/api/parent/children/:id', (request, reply) => {
+    const input = request.body;
+    if (!validChildPatch(input))
+      return reply.code(400).send({ error: 'Provide a valid name or active status' });
+    const existing = db.prepare('SELECT id, name, active FROM children WHERE id = ?').get(request.params.id) as
+      { id: string; name: string; active: number } | undefined;
+    if (!existing) return reply.code(404).send({ error: 'Child not found' });
+    if (input.name !== undefined) {
+      const name = input.name.trim();
+      if (db.prepare('SELECT id FROM children WHERE name = ? COLLATE NOCASE AND id != ?').get(name, existing.id))
+        return reply.code(409).send({ error: 'A child with this name already exists' });
+      db.prepare('UPDATE children SET name = ? WHERE id = ?').run(name, existing.id);
+      return { id: existing.id, name, active: Boolean(existing.active) };
+    }
+    if (input.active === false && existing.active) {
+      const activeSchedule = db.prepare(`SELECT 1 FROM schedule_assignees a
+        JOIN chore_schedules s ON s.id = a.schedule_id
+        WHERE a.child_id = ? AND s.paused = 0 LIMIT 1`).get(existing.id);
+      if (activeSchedule) return reply.code(409).send({
+        error: 'Pause or reassign active schedules before deactivating this child',
+      });
+    }
+    db.prepare('UPDATE children SET active = ? WHERE id = ?').run(Number(input.active), existing.id);
+    return { id: existing.id, name: existing.name, active: input.active };
+  });
+  app.delete<{ Params: { id: string } }>('/api/parent/children/:id', (request, reply) => {
+    const id = request.params.id;
+    if (!db.prepare('SELECT id FROM children WHERE id = ?').get(id))
+      return reply.code(404).send({ error: 'Child not found' });
+    // Deletion is only safe for unused child records; historical data must be retained.
+    const references: [string, string][] = [
+      ['schedule_assignees', 'child_id'],
+      ['occurrence_assignees', 'child_id'],
+      ['chore_completions', 'performed_by'],
+      ['completion_events', 'performed_by'],
+      ['occurrence_overrides', 'child_id'],
+    ];
+    if (references.some(([table, column]) =>
+      db.prepare(`SELECT 1 FROM ${table} WHERE ${column} = ? LIMIT 1`).get(id)))
+      return reply.code(409).send({ error: 'This child has chore history or assignments; deactivate instead of deleting' });
+    db.prepare('DELETE FROM children WHERE id = ?').run(id);
+    return reply.code(204).send();
+  });
   app.get('/api/parent/schedules', () => {
     const rows = db.prepare(`SELECT s.*, c.name FROM chore_schedules s
       JOIN chores c ON c.id = s.chore_id ORDER BY c.name, s.id`).all();

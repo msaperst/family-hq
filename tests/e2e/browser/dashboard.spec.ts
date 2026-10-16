@@ -27,6 +27,40 @@ test('renders an empty household as an aligned chore panel with exact copy', asy
   expect(Math.abs(left!.y - right!.y)).toBeLessThan(5);
 });
 
+for (const count of [1, 2, 3]) {
+  test(`keeps ${count} child chore columns aligned beside calendar in landscape`, async ({ page }) => {
+    await page.setViewportSize({ width: 1500, height: 900 });
+    await page.route('**/api/chores?**', async route => {
+      await route.fulfill({
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify({
+          today: '2026-10-16', through: '2026-10-22',
+          columns: Array.from({ length: count }, (_, index) => ({
+            id: `child-${index}`, name: `Child ${index + 1}`, chores: [],
+          })),
+        }),
+      });
+    });
+    await page.goto('/');
+    const columns = page.locator('.chores-panel .column');
+    await expect(columns).toHaveCount(count);
+    const calendar = await page.locator('.dashboard-content .calendar-panel').boundingBox();
+    expect(calendar).not.toBeNull();
+    const bounds = await columns.evaluateAll(elements =>
+      elements.map(element => {
+        const rect = element.getBoundingClientRect();
+        return { left: rect.left, top: rect.top, right: rect.right, width: rect.width };
+      }),
+    );
+    for (const rect of bounds) {
+      expect(rect.top).toBeCloseTo(bounds[0]!.top, 0);
+      expect(rect.right).toBeLessThan(calendar!.x);
+    }
+    const widths = bounds.map(rect => rect.width);
+    expect(Math.max(...widths) - Math.min(...widths)).toBeLessThan(2);
+  });
+}
+
 test('shows active child columns', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('region', { name: 'Porter' })).toBeVisible();
