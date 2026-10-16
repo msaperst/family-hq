@@ -31,6 +31,64 @@ test('deletes an unused child after confirmation', async ({ page }) => {
   await expect(childRow).toHaveCount(0);
 });
 
+test('requires paused assignments before deactivation and supports reactivation', async ({ page }) => {
+  await page.goto('/settings');
+  const childrenSection = page.locator('.settings-panel').filter({ has: page.getByRole('heading', { name: 'Children' }) });
+  await page.getByLabel('Child name').fill('Robin');
+  await page.getByRole('button', { name: 'Add child' }).click();
+  const childRow = childrenSection.locator('.schedule-list li').filter({ hasText: 'Robin' });
+  await expect(childRow).toBeVisible();
+
+  await page.getByLabel('Chore name').fill('Put away shoes');
+  await page.getByLabel('Robin').check();
+  await page.getByRole('button', { name: 'Add chore' }).click();
+  const choreRow = page.locator('.settings-panel').filter({ has: page.getByRole('heading', { name: 'Scheduled chores' } })
+    .locator('.schedule-list li').filter({ hasText: 'Put away shoes' });
+  await expect(choreRow).toBeVisible();
+
+  await childRow.getByRole('button', { name: 'Deactivate' }).click();
+  await expect(page.getByRole('alert')).toContainText('Pause or reassign active schedules');
+  await expect(childRow.getByRole('button', { name: 'Deactivate' })).toBeVisible();
+
+  await choreRow.getByRole('button', { name: 'Pause' }).click();
+  await expect(choreRow.getByRole('button', { name: 'Resume' })).toBeVisible();
+  await childRow.getByRole('button', { name: 'Deactivate' }).click();
+  await expect(childRow).toContainText('Inactive');
+  await expect(childRow.getByRole('button', { name: 'Reactivate' })).toBeVisible();
+  await expect(page.getByLabel('Robin')).toHaveCount(0);
+
+  await childRow.getByRole('button', { name: 'Reactivate' }).click();
+  await expect(childRow).not.toContainText('Inactive');
+  await expect(page.getByLabel('Robin')).toBeVisible();
+  await expect(choreRow).toContainText('Robin');
+});
+
+test('rejects duplicate child names and protects assigned children from deletion', async ({ page }) => {
+  await page.goto('/settings');
+  await page.getByLabel('Child name').fill('Porter');
+  await page.getByRole('button', { name: 'Add child' }).click();
+  await expect(page.getByRole('alert')).toContainText('already exists');
+
+  const childRow = page.locator('.settings-panel').filter({ has: page.getByRole('heading', { name: 'Children' }) })
+    .locator('.schedule-list li').filter({ hasText: 'Porter' });
+  page.once('dialog', dialog => void dialog.accept());
+  await childRow.getByRole('button', { name: 'Delete' }).click();
+  await expect(page.getByRole('alert')).toContainText('deactivate instead of deleting');
+  await expect(childRow).toBeVisible();
+});
+
+test('cancels child deletion when confirmation is dismissed', async ({ page }) => {
+  await page.goto('/settings');
+  await page.getByLabel('Child name').fill('Temporary');
+  await page.getByRole('button', { name: 'Add child' }).click();
+  const row = page.locator('.settings-panel').filter({ has: page.getByRole('heading', { name: 'Children' }) })
+    .locator('.schedule-list li').filter({ hasText: 'Temporary' });
+  await expect(row).toBeVisible();
+  page.once('dialog', dialog => void dialog.dismiss());
+  await row.getByRole('button', { name: 'Delete' }).click();
+  await expect(row).toBeVisible();
+});
+
 test('creates a recurring chore and displays it on the dashboard', async ({ page }) => {
   await page.goto('/settings');
   await expect(page.getByRole('heading', { name: 'Parent settings', exact: false })).toBeVisible();
