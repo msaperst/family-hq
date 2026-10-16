@@ -66,6 +66,9 @@ export function App() {
     return () => clearTimeout(timeout);
   }, [undoEntries]);
   useEffect(() => {
+    // Only ask about onboarding after the dashboard confirms it has no chore columns.
+    // Normal household dashboards must not generate an extra parent API request.
+    if (!data || data.columns.length > 0) { setNeedsSetup(false); return; }
     const controller = new AbortController();
     void fetch('/api/parent/children', { signal: controller.signal })
       .then(async response => {
@@ -75,7 +78,7 @@ export function App() {
       })
       .catch(() => { /* Do not advertise setup during a network failure. */ });
     return () => controller.abort();
-  }, []);
+  }, [data?.columns.length]);
   const refresh = useCallback(async (signal?: AbortSignal) => {
     try {
       const response = await fetch(`/api/chores?date=${baseDayRef.current}&more=false`, { signal });
