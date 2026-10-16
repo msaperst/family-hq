@@ -27,7 +27,7 @@ describe('remaining server boundary conditions', () => {
 
   it('stops Google pagination when the next page token is empty', async () => {
     const request = vi.fn(async (url: string | URL) => new Response(JSON.stringify(
-      String(url).includes('oauth2.googleapis.com')
+      new URL(String(url)).origin === 'https://oauth2.googleapis.com'
         ? { access_token: 'token' }
         : { items: [], nextPageToken: '' },
     ), { status: 200 }));
