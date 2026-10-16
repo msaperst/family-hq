@@ -132,6 +132,7 @@ export function App() {
     <header className="dashboard-header dashboard-header-centered">
       <div><h1>Family HQ</h1><p>{new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', dateStyle: 'full' }).format(new Date(today + 'T00:00:00Z'))}</p></div>
 
+      <a className="dashboard-settings-link" href="/settings">Parent settings</a>
     </header>
     <div className="dashboard-content"><div className="chores-panel">
     {!data && !error && <p>Loading chores…</p>}
@@ -142,7 +143,7 @@ export function App() {
         return <section className="column" key={column.id} aria-label={column.name}>
         <div className="column-heading"><h2>{column.name}</h2><p>{choresForColumn.filter(chore => chore.completed).length} completed</p></div>
         <div className="column-body" onScroll={onChoreScroll}>
-        {data?.columns.length === 0 && <p className="chore-empty-state">No chores scheduled. Everyone's caught up!</p>}
+        {data?.columns.length === 0 && <p className="chore-empty-state">No chores scheduled. Everyone's caught up! <a href="/settings">Set up children and chores</a></p>}
         {error && <p role="alert" className="panel-error">{data ? "Showing saved chores — unable to refresh" : "Unable to load chores"}</p>}
         {completionError && <p role="alert" className="panel-error">{completionError}</p>}
         {groups.map(group => {
