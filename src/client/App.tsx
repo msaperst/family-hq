@@ -46,6 +46,7 @@ const groups = [
 ] as const;
 export function App() {
   const [data, setData] = useState<DashboardResponse | null>(null);
+  const [needsSetup, setNeedsSetup] = useState(false);
   const [error, setError] = useState('');
   const [completionError, setCompletionError] = useState('');
   const [loadedWeeks, setLoadedWeeks] = useState(1);
@@ -64,6 +65,17 @@ export function App() {
     const timeout = setTimeout(() => setUndoEntries(entries => entries.filter(entry => entry.expiresAt > Date.now())), delay);
     return () => clearTimeout(timeout);
   }, [undoEntries]);
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch('/api/children', { signal: controller.signal })
+      .then(async response => {
+        if (!response.ok) return;
+        const result = await response.json() as { children: { id: string }[] };
+        if (!controller.signal.aborted) setNeedsSetup(result.children.length === 0);
+      })
+      .catch(() => { /* Do not advertise setup during a network failure. */ });
+    return () => controller.abort();
+  }, []);
   const refresh = useCallback(async (signal?: AbortSignal) => {
     try {
       const response = await fetch(`/api/chores?date=${baseDayRef.current}&more=false`, { signal });
@@ -142,7 +154,7 @@ export function App() {
         return <section className="column" key={column.id} aria-label={column.name}>
         <div className="column-heading"><h2>{column.name}</h2><p>{choresForColumn.filter(chore => chore.completed).length} completed</p></div>
         <div className="column-body" onScroll={onChoreScroll}>
-        {data?.columns.length === 0 && <p className="chore-empty-state">No chores scheduled. Everyone's caught up!</p>}
+        {data?.columns.length === 0 && <><p className="chore-empty-state">No chores scheduled. Everyone's caught up!</p>{needsSetup && <p className="chore-setup-link">First time here? <a href="/settings">Set up your household</a> to add children and chores.</p>}</>}
         {error && <p role="alert" className="panel-error">{data ? "Showing saved chores — unable to refresh" : "Unable to load chores"}</p>}
         {completionError && <p role="alert" className="panel-error">{completionError}</p>}
         {groups.map(group => {
