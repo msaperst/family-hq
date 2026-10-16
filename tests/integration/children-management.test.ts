@@ -77,4 +77,29 @@ describe('first-run children management', () => {
     expect((await app.inject({ method: 'DELETE', url })).statusCode).toBe(404);
   });
 
+  it('rejects malformed patches, unknown children and conflicting rename', async () => {
+    const first = await app.inject({ method: 'POST', url: '/api/parent/children', payload: { name: 'Alex' } });
+    const second = await app.inject({ method: 'POST', url: '/api/parent/children', payload: { name: 'Taylor' } });
+    const path = '/api/parent/children/' + first.json().id;
+    for (const payload of [{}, { name: 'Alex', active: false }, { active: 'false' }, { name: ' ' }, { unexpected: true }]) {
+      expect((await app.inject({ method: 'PATCH', url: path, payload })).statusCode).toBe(400);
+    }
+    expect((await app.inject({ method: 'PATCH', url: path, payload: { name: ' taylor ' } })).statusCode).toBe(409);
+    expect((await app.inject({ method: 'PATCH', url: '/api/parent/children/missing', payload: { active: false } })).statusCode).toBe(404);
+    expect((await app.inject({ method: 'DELETE', url: '/api/parent/children/missing' })).statusCode).toBe(404);
+    expect((await app.inject({ method: 'PATCH', url: '/api/parent/children/' + second.json().id, payload: { name: 'Robin' } })).statusCode).toBe(200);
+  });
+
+  it('retains historical completion references when deactivating an otherwise unassigned child', async () => {
+    const created = await app.inject({ method: 'POST', url: '/api/parent/children', payload: { name: 'Alex' } });
+    const id = created.json().id as string;
+    db.prepare('INSERT INTO chores (id, name) VALUES (?, ?)').run('historic', 'Historic task');
+    db.prepare(`INSERT INTO chore_occurrences (id, chore_id, occurrence_key, starts_on, due_on, mode)
+      VALUES (?, ?, ?, ?, ?, ?)`).run('historic-occ', 'historic', 'historic-occ', '2026-10-01', '2026-10-01', 'individual');
+    db.prepare('INSERT INTO occurrence_assignees (occurrence_id, child_id) VALUES (?, ?)').run('historic-occ', id);
+    expect((await app.inject({ method: 'PATCH', url: '/api/parent/children/' + id, payload: { active: false } })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'DELETE', url: '/api/parent/children/' + id })).statusCode).toBe(409);
+    expect(db.prepare('SELECT child_id FROM occurrence_assignees WHERE occurrence_id = ?').get('historic-occ')).toEqual({ child_id: id });
+  });
+
 });
