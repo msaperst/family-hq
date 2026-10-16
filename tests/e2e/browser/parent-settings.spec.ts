@@ -1,6 +1,24 @@
 import { expect } from '@playwright/test';
 import { test } from './fixture.js';
 
+test('adds and renames a child, then assigns a chore through Parent Settings', async ({ page }) => {
+  await page.goto('/settings');
+  await page.getByLabel('Child name').fill('Alex');
+  await page.getByRole('button', { name: 'Add child' }).click();
+  const child = page.locator('.settings-panel').filter({ has: page.getByRole('heading', { name: 'Children' }) });
+  await expect(child.getByText('Alex')).toBeVisible();
+  await child.getByRole('button', { name: 'Rename' }).last().click();
+  await page.getByLabel('Rename child').fill('Taylor');
+  await page.getByRole('button', { name: 'Save child name' }).click();
+  await expect(child.getByText('Taylor')).toBeVisible();
+  await page.getByLabel('Chore name').fill('Sort books');
+  await page.getByLabel('Taylor').check();
+  await page.getByRole('button', { name: 'Add chore' }).click();
+  await expect(page.getByText('Sort books').first()).toBeVisible();
+  await page.goto('/');
+  await expect(page.getByRole('region', { name: 'Taylor' }).getByText('Sort books').first()).toBeVisible();
+});
+
 test('creates a recurring chore and displays it on the dashboard', async ({ page }) => {
   await page.goto('/settings');
   await expect(page.getByRole('heading', { name: 'Parent settings', exact: false })).toBeVisible();
