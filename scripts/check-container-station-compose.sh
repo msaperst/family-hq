@@ -12,4 +12,10 @@ if grep -Eq '^[[:space:]]*(build:|privileged:)' "$file"; then
   echo "Container Station manifest must use a prebuilt nonprivileged image" >&2
   exit 1
 fi
-docker compose -f "$file" config --no-env-resolution --quiet
+# GitHub runners do not have the NAS-only credentials file. Validate a temporary
+# copy of the manifest with a disposable empty env file instead.
+scratch=$(mktemp -d)
+trap 'rm -rf "$scratch"' EXIT HUP INT TERM
+: > "$scratch/production.env"
+sed "s|/share/Container/family-hq/.env.production|$scratch/production.env|" "$file" > "$scratch/compose.yaml"
+docker compose -f "$scratch/compose.yaml" config --quiet
