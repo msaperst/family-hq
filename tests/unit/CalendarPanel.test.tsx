@@ -27,6 +27,20 @@ afterEach(() => {
 });
 
 describe('CalendarPanel UI and data lifecycle', () => {
+
+  it('orders all-day and timed events by their actual Phoenix start time', async () => {
+    fetchMock.mockResolvedValue(reply([
+      { id: 'all-day', title: 'All-day appointment', start: '2026-10-16', end: '2026-10-17', allDay: true, location: null },
+      event('Early appointment', '2026-10-16T14:00:00Z', '2026-10-16T15:00:00Z'),
+      event('Late appointment', '2026-10-16T23:00:00Z', '2026-10-17T00:00:00Z'),
+    ]));
+    render(<CalendarPanel today={TODAY} />);
+    await screen.findByText('Late appointment');
+    const titles = ['All-day appointment', 'Early appointment', 'Late appointment'];
+    const elements = titles.map(title => screen.getByText(title));
+    expect(elements[0].compareDocumentPosition(elements[1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(elements[1].compareDocumentPosition(elements[2]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
   it('loads the first seven days, renders timed events and locations, and hides completed events', async () => {
     fetchMock.mockResolvedValue(reply([
       event('Already finished', '2026-10-15T14:00:00Z', '2026-10-15T15:00:00Z'),
