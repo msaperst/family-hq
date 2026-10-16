@@ -45,6 +45,7 @@ A local Docker smoke environment is available with `docker compose up --build -d
 - [API](docs/API.md)
 - [Google Calendar setup](docs/GOOGLE_CALENDAR.md)
 - [SQLite persistence and backup](docs/PERSISTENCE.md)
+- [QNAP production deployment](docs/QNAP_DEPLOYMENT.md)
 - [Browser tests](docs/BROWSER_TESTS.md)
 
 ## Deployment and security
