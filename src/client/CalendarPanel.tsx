@@ -41,7 +41,7 @@ export function activeAgenda(events: FamilyEvent[], now: Date): FamilyEvent[] {
 export function isInProgress(event: FamilyEvent, now: Date): boolean {
   return !event.allDay && Date.parse(event.start) <= now.getTime() && Date.parse(event.end) > now.getTime();
 }
-export function CalendarPanel({ today }: { today: string }) {
+export function CalendarPanel({ today }: Readonly<{ today: string }>) {
   const [events, setEvents] = useState<FamilyEvent[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'stale' | 'unavailable'>('loading');
   const [loadedDays, setLoadedDays] = useState(7);
@@ -132,7 +132,7 @@ export function CalendarPanel({ today }: { today: string }) {
     <div className="calendar-body" ref={scroller} onScroll={onScroll}>
     {status === 'loading' && <p>Loading calendar…</p>}
     {status === 'unavailable' && <p role="alert" className="panel-error">{events.length ? "Showing saved calendar — unable to refresh" : "Unable to load calendar"}</p>}
-    {status === 'stale' && <p role="status" className="panel-error">Showing saved calendar events</p>}
+    {status === 'stale' && <output className="panel-error">Showing saved calendar events</output>}
     {status !== 'loading' && <div className="calendar-agenda">
       {days.map(day => {
         const dayEvents = upcoming.filter(event => occursOn(event, day));
@@ -147,7 +147,7 @@ export function CalendarPanel({ today }: { today: string }) {
           </li>)}</ul>
         </section>;
       })}
-      {loadingMore && <p role="status">Loading more events…</p>}
+      {loadingMore && <output>Loading more events…</output>}
       {loadError && <button type="button" className="agenda-more" onClick={() => void loadMore()}>Retry loading events</button>}
       {!hasMore && <p className="calendar-empty">End of 90-day calendar window</p>}
       {hasMore && (status !== 'unavailable' || events.length > 0) && !loadingMore && !loadError && <button type="button" className="agenda-more" onClick={() => void loadMore()}>Load more events</button>}
