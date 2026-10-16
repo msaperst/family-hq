@@ -1,0 +1,37 @@
+# QNAP production deployment. Local build now; immutable registry image handled in issue #2.
+# Reverse proxy on this host is required when binding the application to loopback.
+services:
+  family-hq:
+    image: ${FAMILY_HQ_IMAGE:-family-hq:local}
+    build:
+      context: .
+    ports:
+      - "127.0.0.1:${FAMILY_HQ_PUBLISHED_PORT:-3080}:3080"
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      FAMILY_HQ_PORT: "3080"
+      FAMILY_HQ_DB_PATH: /app/data/family-hq.sqlite
+      FAMILY_HQ_GOOGLE_CALENDAR_ID: "${FAMILY_HQ_GOOGLE_CALENDAR_ID:-}"
+      FAMILY_HQ_GOOGLE_CLIENT_ID: "${FAMILY_HQ_GOOGLE_CLIENT_ID:-}"
+      FAMILY_HQ_GOOGLE_CLIENT_SECRET: "${FAMILY_HQ_GOOGLE_CLIENT_SECRET:-}"
+      FAMILY_HQ_GOOGLE_REFRESH_TOKEN: "${FAMILY_HQ_GOOGLE_REFRESH_TOKEN:-}"
+    volumes:
+      - family-hq-data:/app/data
+    restart: unless-stopped
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3080/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  family-hq-data:
+    external: true
+    name: family-hq-data
