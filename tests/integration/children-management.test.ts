@@ -49,4 +49,32 @@ describe('first-run children management', () => {
     expect(deactivated.statusCode).toBe(409);
     expect((await app.inject('/api/children')).json().children).toHaveLength(1);
   });
+  it('deactivates an assigned child after schedules are paused without losing history', async () => {
+    const created = await app.inject({ method: 'POST', url: '/api/parent/children', payload: { name: 'Alex' } });
+    const id = created.json().id as string;
+    const scheduled = await app.inject({ method: 'POST', url: '/api/parent/schedules', payload: {
+      name: 'Tidy toys', mode: 'individual', frequency: 'daily', intervalCount: 1,
+      weekdays: [], anchorDate: '2026-10-16', endDate: null, rotation: 'none', assignees: [id],
+    } });
+    expect(scheduled.statusCode).toBe(201);
+    const url = '/api/parent/children/' + id;
+    expect((await app.inject({ method: 'PATCH', url, payload: { active: false } })).statusCode).toBe(409);
+    expect((await app.inject({
+      method: 'PATCH', url: '/api/parent/schedules/' + scheduled.json().id, payload: { paused: true },
+    })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'PATCH', url, payload: { active: false } })).statusCode).toBe(200);
+    expect((await app.inject('/api/children')).json().children).toEqual([]);
+    expect((await app.inject({ method: 'DELETE', url })).statusCode).toBe(409);
+    expect((await app.inject({ method: 'PATCH', url, payload: { active: true } })).statusCode).toBe(200);
+    expect((await app.inject('/api/parent/schedules')).json().schedules[0].assignees).toEqual([id]);
+  });
+
+  it('allows permanent deletion only for a child never assigned or referenced', async () => {
+    const created = await app.inject({ method: 'POST', url: '/api/parent/children', payload: { name: 'Temporary' } });
+    const url = '/api/parent/children/' + created.json().id;
+    expect((await app.inject({ method: 'DELETE', url })).statusCode).toBe(204);
+    expect((await app.inject('/api/parent/children')).json().children).toEqual([]);
+    expect((await app.inject({ method: 'DELETE', url })).statusCode).toBe(404);
+  });
+
 });
