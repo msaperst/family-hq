@@ -5,7 +5,7 @@ interface Schedule {
   intervalCount: number; weekdays: number[]; anchorDate: string;
   endDate: string | null; rotation: string; paused: boolean; assignees: string[];
 }
-interface Child { id: string; name: string; active?: boolean | number }
+interface Child { id: string; name: string; active?: number }
 interface Occurrence { key: string; startsOn: string; dueOn: string; assignees: string[]; skipped: boolean }
 interface Exception { originalDate: string; action: string; newDate: string | null; childId: string | null }
 const weekdayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -97,7 +97,7 @@ export function ParentSettings() {
       try {
         const response = await fetch('/api/parent/children/' + encodeURIComponent(child.id), {
           method: 'PATCH', headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ active: !Boolean(child.active) }),
+          body: JSON.stringify({ active: !child.active === 1 }),
         });
         if (!response.ok) throw new Error((await response.json() as { error?: string }).error ?? 'Unable to update child');
         await load();
@@ -196,10 +196,10 @@ export function ParentSettings() {
       <p>Add children before assigning chores. Deactivate children assigned only to paused schedules; delete is available only when no assignments or history exist.</p>
       {managedChildren.length === 0 && <p>No children yet. Add a child to get started.</p>}
       <ul className="schedule-list">{managedChildren.map(child => <li key={child.id}>
-        <span><strong>{child.name}</strong>{!Boolean(child.active) && ' (Inactive)'}</span>
+        <span><strong>{child.name}</strong>{!child.active === 1 && ' (Inactive)'}</span>
         <div className="schedule-actions">
           <button type="button" disabled={busy} onClick={() => { setEditingChildId(child.id); setEditingChildName(child.name); }}>Rename</button>
-          <button type="button" disabled={busy} onClick={() => void changeChildStatus(child)}>{Boolean(child.active) ? 'Deactivate' : 'Reactivate'}</button>
+          <button type="button" disabled={busy} onClick={() => void changeChildStatus(child)}>{child.active === 1 ? 'Deactivate' : 'Reactivate'}</button>
           <button type="button" disabled={busy} onClick={() => void deleteChild(child)}>Delete</button>
         </div>
       </li>)}</ul>
