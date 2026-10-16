@@ -135,7 +135,7 @@ export function App() {
     </header>
     <div className="dashboard-content"><div className="chores-panel">
     {!data && !error && <p>Loading chores…</p>}
-    {(data || error) && <div className="columns">
+    {(data || error) && <div className="columns" data-column-count={data?.columns.length || 1}>
       {(data?.columns.length ? data.columns : [{ id: "chores", name: "Chores", chores: [] }]).map(column => {
         const retained = undoEntries.filter(entry => entry.columnId === column.id && entry.expiresAt > Date.now() && !column.chores.some(chore => chore.id === entry.chore.id));
         const choresForColumn = [...column.chores.map(chore => undoEntries.some(entry => entry.chore.id === chore.id) ? { ...chore, completed: true } : chore), ...retained.map(entry => entry.chore)];
