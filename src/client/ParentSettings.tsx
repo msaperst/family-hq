@@ -5,7 +5,7 @@ interface Schedule {
   intervalCount: number; weekdays: number[]; anchorDate: string;
   endDate: string | null; rotation: string; paused: boolean; assignees: string[];
 }
-interface Child { id: string; name: string }
+interface Child { id: string; name: string; active?: boolean | number }
 interface Occurrence { key: string; startsOn: string; dueOn: string; assignees: string[]; skipped: boolean }
 interface Exception { originalDate: string; action: string; newDate: string | null; childId: string | null }
 const weekdayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -25,6 +25,10 @@ function toggleAssignee(previous: string[], childId: string, individual: boolean
 export function ParentSettings() {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [children, setChildren] = useState<Child[]>([]);
+  const [managedChildren, setManagedChildren] = useState<Child[]>([]);
+  const [newChildName, setNewChildName] = useState('');
+  const [editingChildId, setEditingChildId] = useState<string | null>(null);
+  const [editingChildName, setEditingChildName] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const mutationLock = useRef(false);
@@ -54,14 +58,42 @@ export function ParentSettings() {
   const [endDate, setEndDate] = useState('');
   const [assignees, setAssignees] = useState<string[]>([]);
   async function load() {
-    const [schedulesResponse, childrenResponse] = await Promise.all([fetch('/api/parent/schedules'), fetch('/api/children')]);
-    if (!schedulesResponse.ok || !childrenResponse.ok) throw new Error('Unable to load parent settings');
+    const [schedulesResponse, childrenResponse, managedResponse] = await Promise.all([fetch('/api/parent/schedules'), fetch('/api/children'), fetch('/api/parent/children')]);
+    if (!schedulesResponse.ok || !childrenResponse.ok || !managedResponse.ok) throw new Error('Unable to load parent settings');
     const schedulesData = await schedulesResponse.json() as { schedules: Schedule[] };
     const childrenData = await childrenResponse.json() as { children: Child[] };
     setSchedules(schedulesData.schedules);
     setChildren(childrenData.children);
+    setManagedChildren((await managedResponse.json() as { children: Child[] }).children);
   }
   useEffect(() => { void load().catch(cause => setError(cause instanceof Error ? cause.message : 'Unable to load settings')); }, []);
+  async function saveChild(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await runMutation(async () => {
+      try {
+        const response = await fetch(editingChildId ? '/api/parent/children/' + encodeURIComponent(editingChildId) : '/api/parent/children', {
+          method: editingChildId ? 'PATCH' : 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ name: editingChildId ? editingChildName : newChildName }),
+        });
+        if (!response.ok) throw new Error((await response.json() as { error?: string }).error ?? 'Unable to save child');
+        setNewChildName(''); setEditingChildId(null); setEditingChildName('');
+        await load();
+      } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to save child'); }
+    });
+  }
+  async function changeChildStatus(child: Child) {
+    await runMutation(async () => {
+      try {
+        const response = await fetch('/api/parent/children/' + encodeURIComponent(child.id), {
+          method: 'PATCH', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ active: !Boolean(child.active) }),
+        });
+        if (!response.ok) throw new Error((await response.json() as { error?: string }).error ?? 'Unable to update child');
+        await load();
+      } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to update child'); }
+    });
+  }
   async function loadOccurrences(id: string) {
     const [preview, overrides] = await Promise.all([
       fetch('/api/parent/schedules/' + encodeURIComponent(id) + '/preview'),
@@ -150,6 +182,28 @@ export function ParentSettings() {
     </header>
     {error && <p role="alert" className="error">{error}</p>}
     <section className="settings-panel">
+      <h2>Children</h2>
+      <p>Add children before assigning chores. Names can be changed without losing existing history.</p>
+      {managedChildren.length === 0 && <p>No children yet. Add a child to get started.</p>}
+      <ul className="schedule-list">{managedChildren.map(child => <li key={child.id}>
+        <span><strong>{child.name}</strong>{!Boolean(child.active) && ' (Inactive)'}</span>
+        <div className="schedule-actions">
+          <button type="button" disabled={busy} onClick={() => { setEditingChildId(child.id); setEditingChildName(child.name); }}>Rename</button>
+          <button type="button" disabled={busy} onClick={() => void changeChildStatus(child)}>{Boolean(child.active) ? 'Deactivate' : 'Reactivate'}</button>
+        </div>
+      </li>)}</ul>
+      <form className="settings-form" onSubmit={event => void saveChild(event)}>
+        <label>{editingChildId ? 'Rename child' : 'Child name'}
+          <input required maxLength={80} value={editingChildId ? editingChildName : newChildName}
+            onChange={event => editingChildId ? setEditingChildName(event.target.value) : setNewChildName(event.target.value)} />
+        </label>
+        <div className="schedule-actions">
+          <button type="submit" disabled={busy || !(editingChildId ? editingChildName : newChildName).trim()}>{editingChildId ? 'Save child name' : 'Add child'}</button>
+          {editingChildId && <button type="button" disabled={busy} onClick={() => { setEditingChildId(null); setEditingChildName(''); }}>Cancel</button>}
+        </div>
+      </form>
+    </section>
+    <section className="settings-panel">
       <h2>Scheduled chores</h2>
       {schedules.length === 0 && <p>No schedules yet.</p>}
       <ul className="schedule-list">{schedules.map(schedule => <li key={schedule.id}>
@@ -170,6 +224,7 @@ export function ParentSettings() {
           </select>
         </label>
         <fieldset><legend>Assign to</legend>
+          {children.length === 0 && <p>Add a child above before assigning chores.</p>}
           {children.map(child => <label key={child.id} className="settings-checkbox">
             <input type={mode === 'individual' && rotation === 'none' ? 'radio' : 'checkbox'} name="assignee"
               checked={assignees.includes(child.id)}
