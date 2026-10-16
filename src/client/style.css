@@ -221,3 +221,17 @@ h1 { font-size: clamp(1.8rem, 4vw, 2.5rem); margin: 0; }
   padding: 28px 16px;
 }
 
+
+/* Keep every chore column alongside the calendar on landscape dashboards. */
+@media (min-width: 951px) and (orientation: landscape) {
+  .chores-panel .columns[data-column-count="1"] { grid-template-columns: minmax(0, 1fr); }
+  .chores-panel .columns[data-column-count="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .chores-panel .columns[data-column-count="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .chores-panel .columns[data-column-count="4"] { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .chores-panel .columns[data-column-count="5"] { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .chores-panel .columns[data-column-count="6"] { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .chores-panel .columns[data-column-count="7"] { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+  .chores-panel .columns[data-column-count="8"] { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+  .chores-panel .columns[data-column-count="9"] { grid-template-columns: repeat(9, minmax(0, 1fr)); }
+  .chores-panel .columns[data-column-count="10"] { grid-template-columns: repeat(10, minmax(0, 1fr)); }
+}
