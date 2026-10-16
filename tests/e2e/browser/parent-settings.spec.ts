@@ -7,7 +7,7 @@ test('adds and renames a child, then assigns a chore through Parent Settings', a
   await page.getByRole('button', { name: 'Add child' }).click();
   const child = page.locator('.settings-panel').filter({ has: page.getByRole('heading', { name: 'Children' }) });
   await expect(child.getByText('Alex')).toBeVisible();
-  await child.getByRole('button', { name: 'Rename' }).last().click();
+  await child.locator('.schedule-list li').filter({ hasText: 'Alex' }).getByRole('button', { name: 'Rename' }).click();
   await page.getByLabel('Rename child').fill('Taylor');
   await page.getByRole('button', { name: 'Save child name' }).click();
   await expect(child.getByText('Taylor')).toBeVisible();
