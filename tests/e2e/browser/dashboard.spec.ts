@@ -1,6 +1,32 @@
 import { expect } from '@playwright/test';
 import { test } from './fixture.js';
 
+test('renders an empty household as an aligned chore panel with exact copy', async ({ page }) => {
+  await page.route('**/api/chores?**', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ today: '2026-10-16', through: '2026-10-22', columns: [] }),
+    });
+  });
+  await page.goto('/');
+  const chores = page.getByRole('region', { name: 'Chores' });
+  const calendar = page.getByRole('heading', { name: 'Coming up' });
+  await expect(chores).toBeVisible();
+  await expect(calendar).toBeVisible();
+  const message = chores.locator('.chore-empty-state');
+  await expect(message).toHaveText("No chores scheduled. Everyone's caught up!");
+  await expect(chores.getByRole('heading', { name: 'Chores' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Load more chores' })).toHaveCount(0);
+  // Empty states should not render as an orphan paragraph above the panel.
+  await expect(page.locator('.dashboard > .empty')).toHaveCount(0);
+  const left = await chores.boundingBox();
+  const right = await page.locator('.dashboard-content .calendar-panel').boundingBox();
+  expect(left).not.toBeNull();
+  expect(right).not.toBeNull();
+  expect(Math.abs(left!.y - right!.y)).toBeLessThan(5);
+});
+
 test('shows active child columns', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('region', { name: 'Porter' })).toBeVisible();

@@ -72,10 +72,15 @@ describe('Family HQ dashboard', () => {
       body: JSON.stringify({ childId: null, completed: true }),
     })));
   });
-  it('shows an empty state without columns', async () => {
+  it('shows an empty household in a standard full-width chore column', async () => {
     fetchMock.mockResolvedValue(response({ ...fixture, columns: [] }));
     render(<App />);
-    expect(await screen.findByText(/No chores scheduled/)).toBeTruthy();
+    const panel = await screen.findByRole('region', { name: 'Chores' });
+    expect(within(panel).getByRole('heading', { name: 'Chores' })).toBeTruthy();
+    expect(within(panel).getByText("No chores scheduled. Everyone's caught up!")).toHaveProperty('className', 'chore-empty-state');
+    expect(screen.getAllByRole('region', { name: 'Chores' })).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Load more chores' })).toBeNull();
+    expect(screen.queryByText(/No chores scheduled/, { selector: '.dashboard > p' })).toBeNull();
   });
   it('reports a failed dashboard request', async () => {
     fetchMock.mockRejectedValue(new Error('offline'));
