@@ -38,6 +38,8 @@ class BackupTests(unittest.TestCase):
         live.close()
         with sqlite3.connect(self.db_path) as db:
             db.execute("DELETE FROM children")
+            db.commit()
+            db.execute("PRAGMA journal_mode=DELETE")
         # Ensure the database is cleanly closed and its WAL files are absent.
         for suffix in ("-wal", "-shm"):
             self.assertFalse(Path(str(self.db_path) + suffix).exists())
