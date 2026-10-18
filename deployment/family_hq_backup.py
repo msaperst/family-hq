@@ -45,7 +45,7 @@ def backup(source, root, retain=30):
         os.chmod(temporary, 0o600)
         os.replace(temporary, target)
         # Only prune after a validated snapshot is safely in place.
-        old = sorted(root.glob("family-hq-????????T??????????????Z.sqlite"), reverse=True)
+        old = sorted(root.glob("family-hq-*.sqlite"), reverse=True)
         for item in old[retain:]:
             item.unlink()
         print(f"BACKUP_OK {target} bytes={target.stat().st_size}", flush=True)
