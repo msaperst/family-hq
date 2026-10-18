@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """NAS-local, consistent SQLite backup/restore for Family HQ (Python 3.9+)."""
 import argparse
+from contextlib import closing
 import datetime as dt
 import fcntl
 import os
@@ -15,7 +16,7 @@ REQUIRED_TABLES = {"children", "chores", "chore_schedules", "chore_completions",
 
 
 def check_database(path):
-    with sqlite3.connect(f"file:{path}?mode=ro", uri=True) as db:
+    with closing(sqlite3.connect(f"file:{path}?mode=ro", uri=True)) as db:
         result = db.execute("PRAGMA integrity_check").fetchone()
         if result != ("ok",):
             raise RuntimeError(f"SQLite integrity check failed: {result}")
@@ -37,8 +38,8 @@ def backup(source, root, retain=30):
     fd, temporary = tempfile.mkstemp(prefix=".family-hq-", suffix=".sqlite", dir=root)
     os.close(fd)
     try:
-        with sqlite3.connect(f"file:{source}?mode=ro", uri=True, timeout=30) as live:
-            with sqlite3.connect(temporary) as snapshot:
+        with closing(sqlite3.connect(f"file:{source}?mode=ro", uri=True, timeout=30)) as live:
+            with closing(sqlite3.connect(temporary)) as snapshot:
                 live.backup(snapshot)
         check_database(temporary)
         os.chmod(temporary, 0o600)
