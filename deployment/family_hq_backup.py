@@ -12,7 +12,6 @@ import tempfile
 
 DB_NAME = "family-hq.sqlite"
 REQUIRED_TABLES = {"children", "chores", "chore_schedules", "chore_completions", "schema_migrations"}
-DEFAULT_ROOT = Path("/share/homes/msaperst/family-hq-backups")
 
 
 def check_database(path):
@@ -91,7 +90,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=["backup", "verify", "restore"])
     parser.add_argument("--db", type=Path, required=True, help="Resolved Docker-volume SQLite path")
-    parser.add_argument("--root", type=Path, default=DEFAULT_ROOT, help="Private local backup folder")
+    parser.add_argument("--root", type=Path, required=True, help="Private local backup folder")
     parser.add_argument("--snapshot", type=Path, help="Existing backup for verify/restore")
     parser.add_argument("--confirm", action="store_true", help="Acknowledge the container was stopped")
     parser.add_argument("--retain", type=int, default=30)
