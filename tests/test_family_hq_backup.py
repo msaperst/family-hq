@@ -1,4 +1,5 @@
 import importlib.util
+from contextlib import closing
 from pathlib import Path
 import sqlite3
 import tempfile
@@ -16,7 +17,7 @@ class BackupTests(unittest.TestCase):
         self.base = Path(self.tmp.name)
         self.db_path = self.base / "live.sqlite"
         self.root = self.base / "backups"
-        with sqlite3.connect(self.db_path) as db:
+        with closing(sqlite3.connect(self.db_path)) as db:
             db.executescript("""
             PRAGMA journal_mode=WAL;
             CREATE TABLE children (id TEXT PRIMARY KEY, name TEXT);
@@ -33,10 +34,10 @@ class BackupTests(unittest.TestCase):
         live.execute("INSERT INTO children VALUES ('b','Blair')")
         live.commit()
         snapshot = module.backup(self.db_path, self.root)
-        with sqlite3.connect(snapshot) as db:
+        with closing(sqlite3.connect(snapshot)) as db:
             self.assertEqual(db.execute("SELECT count(*) FROM children").fetchone()[0], 2)
         live.close()
-        with sqlite3.connect(self.db_path) as db:
+        with closing(sqlite3.connect(self.db_path)) as db:
             db.execute("DELETE FROM children")
             db.commit()
             db.execute("PRAGMA journal_mode=DELETE")
@@ -44,7 +45,7 @@ class BackupTests(unittest.TestCase):
         for suffix in ("-wal", "-shm"):
             self.assertFalse(Path(str(self.db_path) + suffix).exists())
         module.restore(snapshot, self.db_path, self.root, confirmed=True)
-        with sqlite3.connect(self.db_path) as db:
+        with closing(sqlite3.connect(self.db_path)) as db:
             self.assertEqual(db.execute("SELECT count(*) FROM children").fetchone()[0], 2)
         self.assertEqual(len(list(self.root.glob("family-hq-*.sqlite"))), 2)
 
