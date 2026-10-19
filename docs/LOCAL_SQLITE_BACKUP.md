@@ -37,10 +37,10 @@ Create a root-owned wrapper on the NAS, for example `/path/to/family-hq-deployme
 set -eu
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 DB="$(docker volume inspect family-hq-data --format '{{.Mountpoint}}')/family-hq.sqlite"
-exec /usr/bin/python3 /path/to/family-hq-deployment/family_hq_backup.py backup --db "$DB" --root /path/to/private/family-hq-backups
+exec /opt/bin/python3 /path/to/family-hq-deployment/family_hq_backup.py backup --db "$DB" --root /path/to/private/family-hq-backups
 ```
 
-**QNAP Container Station:** Docker may not be on the default cron or sudo PATH. Check `command -v docker` interactively, and prepend the directory containing its binary to the wrapper PATH. For example, if Docker is at `/share/CACHEDEV1_DATA/.qpkg/container-station/bin/docker`, use `export PATH="/share/CACHEDEV1_DATA/.qpkg/container-station/bin:$PATH"` after the standard PATH line. Check `command -v python3` and update the wrapper path to the actual executable. Protect the wrapper from untrusted edits. Schedule a daily run in **`/etc/config/crontab`** (QNAP's persistent crontab), e.g.:
+**QNAP Container Station:** Docker may not be on the default cron or sudo PATH. Check `command -v docker` interactively, and prepend the directory containing its binary to the wrapper PATH. For example, if Docker is at `/share/CACHEDEV1_DATA/.qpkg/container-station/bin/docker`, use `export PATH="/share/CACHEDEV1_DATA/.qpkg/container-station/bin:$PATH"` after the standard PATH line. On some QNAP systems Python 3 is installed at `/opt/bin/python3` rather than `/usr/bin/python3`. Check `command -v python3` and use that absolute path in the wrapper; the example uses `/opt/bin/python3`. Test the wrapper interactively and with `sudo` before enabling cron. Protect the wrapper from untrusted edits. Schedule a daily run in **`/etc/config/crontab`** (QNAP's persistent crontab), e.g.:
 
 ```cron
 45 2 * * * /path/to/family-hq-deployment/run-backup.sh >> /path/to/private/family-hq-backups/backup.log 2>&1
