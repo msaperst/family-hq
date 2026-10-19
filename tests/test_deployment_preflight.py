@@ -73,13 +73,13 @@ class DeploymentPreflightTests(TestCase):
             compose = alias / "docker-compose.yml"
             resource = alias / "docker-compose.resource.yml"
             compose.write_text(YAML)
-            resource.write_text("services:\\n  family-hq:\\n    mem_limit: 0\\n")
+            resource.write_text("services:\n  family-hq:\n    mem_limit: 0\n")
             info = {"Config": {"Labels": {
                 "com.docker.compose.project.config_files":
                     f"{real / 'docker-compose.yml'},{real / 'docker-compose.resource.yml'}"
             }}}
-            with patch.object(p, "inspect_container", return_value=(info, OLD)), \\
-                 patch.object(p, "published_release", return_value=NEW), \\
+            with patch.object(p, "inspect_container", return_value=(info, OLD)), \
+                 patch.object(p, "published_release", return_value=NEW), \
                  patch.object(p, "command", return_value=""):
                 result = p.preflight("/path/to/docker", compose, resource, NEW)
             self.assertFalse(result["production_files_modified"])
