@@ -16,14 +16,7 @@ command -v python3
 docker volume inspect family-hq-data --format '{{.Mountpoint}}'
 ```
 
-On some QNAP installations, Docker and Python are outside the standard shell and cron PATH, for example:
-
-```text
-/share/CACHEDEV1_DATA/.qpkg/container-station/bin/docker
-/opt/bin/python3
-```
-
-Use the paths reported by **your** NAS; the examples below are illustrative. Keep the backup utility at a stable location and restrict who can edit it.
+On QNAP, Docker and Python may be installed outside the standard shell or cron PATH. Use the executable paths reported by **your** NAS in the wrapper below. Keep the backup utility at a stable location and restrict who can edit it.
 
 ## Configure the backup
 
@@ -40,21 +33,21 @@ test -f "$SCRIPT"
 test -f "$DB"
 ```
 
-The backup script accepts an explicit `--root` destination; it never assumes a particular NAS share.
+The backup script accepts an explicit `--root` destination; it never assumes a particular NAS share. The scheduled wrapper must use absolute executable paths because cron may have a restricted PATH.
 
 ## Create and verify a backup
 
 The application can remain running while a backup is created:
 
 ```sh
-sudo /opt/bin/python3 "$SCRIPT" backup --db "$DB" --root "$BACKUP_DIR"
+sudo "$(command -v python3)" "$SCRIPT" backup --db "$DB" --root "$BACKUP_DIR"
 ```
 
 A successful run reports `BACKUP_OK` and the snapshot filename. To verify one:
 
 ```sh
 SNAPSHOT=/path/to/private/family-hq-backups/family-hq-YYYYMMDDTHHMMSSffffffZ.sqlite
-sudo /opt/bin/python3 "$SCRIPT" verify --db "$DB" --root "$BACKUP_DIR" --snapshot "$SNAPSHOT"
+sudo "$(command -v python3)" "$SCRIPT" verify --db "$DB" --root "$BACKUP_DIR" --snapshot "$SNAPSHOT"
 ```
 
 A valid snapshot reports `VERIFY_OK`. The utility uses SQLite's online backup API, so committed transactions in WAL mode are included; copying the live `.sqlite` file directly is not equivalent. Each snapshot is integrity-checked and atomically published before older backups are pruned.
@@ -70,12 +63,14 @@ Create a wrapper script at a stable location on the NAS, for example `/path/to/f
 set -eu
 
 # Update these paths to match the NAS.
-export PATH="/share/CACHEDEV1_DATA/.qpkg/container-station/bin:/opt/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-PYTHON=/opt/bin/python3
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+# Set absolute executable paths based on command -v docker / python3.
+DOCKER=/path/to/docker
+PYTHON=/path/to/python3
 SCRIPT=/path/to/family-hq-deployment/family_hq_backup.py
 BACKUP_DIR=/path/to/private/family-hq-backups
 
-DB="$(docker volume inspect family-hq-data --format '{{.Mountpoint}}')/family-hq.sqlite"
+DB="$("$DOCKER" volume inspect family-hq-data --format '{{.Mountpoint}}')/family-hq.sqlite"
 exec "$PYTHON" "$SCRIPT" backup --db "$DB" --root "$BACKUP_DIR"
 ```
 
@@ -122,7 +117,7 @@ test "$(docker inspect -f '{{.State.Running}}' "$CONTAINER")" = false
 sudo ls -l "${DB}-wal" "${DB}-shm" 2>/dev/null || true
 
 # Only continue when the container is stopped and both files are absent.
-sudo /opt/bin/python3 "$SCRIPT" restore --db "$DB" --root "$BACKUP_DIR" --snapshot "$SNAPSHOT" --confirm
+sudo "$(command -v python3)" "$SCRIPT" restore --db "$DB" --root "$BACKUP_DIR" --snapshot "$SNAPSHOT" --confirm
 
 docker start "$CONTAINER"
 curl -fsS http://127.0.0.1:3080/api/health
