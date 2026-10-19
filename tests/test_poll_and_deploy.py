@@ -2,6 +2,7 @@ import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
 import sys
+import tempfile
 import unittest
 
 DEPLOY = Path(__file__).resolve().parents[1] / "deployment"
@@ -46,6 +47,51 @@ class PollTests(unittest.TestCase):
             module.poll(SimpleNamespace(docker="docker",apply=True),
                         release_getter=fail_release, revision_getter=lambda _: OLD,
                         deployer=lambda *_: self.fail("deployment called"))
+
+    def test_failed_rollout_is_quarantined_and_not_retried(self):
+        with tempfile.TemporaryDirectory() as folder:
+            args = SimpleNamespace(docker="docker", apply=True, state_dir=Path(folder))
+            attempts = []
+            def broken(*_):
+                attempts.append("deploy")
+                raise module.PreflightError("Deployment failed; previous image restored")
+            with self.assertRaisesRegex(module.PreflightError, "previous image restored"):
+                module.poll(args, release_getter=lambda: NEW,
+                            revision_getter=lambda _: OLD, deployer=broken)
+            out = module.poll(args, release_getter=lambda: NEW,
+                              revision_getter=lambda _: OLD, deployer=broken)
+            self.assertEqual(out["status"], "quarantined")
+            self.assertEqual(attempts, ["deploy"])
+            self.assertEqual(module.read_quarantine(args.state_dir), NEW)
+
+    def test_newer_release_is_not_quarantined(self):
+        with tempfile.TemporaryDirectory() as folder:
+            args = SimpleNamespace(docker="docker", apply=True, state_dir=Path(folder))
+            module.record_failure(args.state_dir, NEW)
+            newer = "c"*40
+            invoked = []
+            out = module.poll(args, release_getter=lambda: newer,
+                              revision_getter=lambda _: OLD,
+                              deployer=lambda a, execute: invoked.append((a.target_sha, execute)) or {"status": "deployed"})
+            self.assertEqual(out["status"], "deployed")
+            self.assertEqual(invoked, [(newer, True)])
+
+    def test_preflight_errors_do_not_quarantine(self):
+        with tempfile.TemporaryDirectory() as folder:
+            args = SimpleNamespace(docker="docker", apply=True, state_dir=Path(folder))
+            with self.assertRaisesRegex(module.PreflightError, "backup inaccessible"):
+                module.poll(args, release_getter=lambda: NEW,
+                            revision_getter=lambda _: OLD,
+                            deployer=lambda *_: (_ for _ in ()).throw(module.PreflightError("backup inaccessible")))
+            self.assertIsNone(module.read_quarantine(args.state_dir))
+
+    def test_corrupt_quarantine_blocks_apply(self):
+        with tempfile.TemporaryDirectory() as folder:
+            args = SimpleNamespace(docker="docker", apply=True, state_dir=Path(folder))
+            (args.state_dir / "failed-release.json").write_text('{"sha": "invalid"}')
+            with self.assertRaisesRegex(module.PreflightError, "Invalid failed-release"):
+                module.poll(args, release_getter=lambda: NEW,
+                            revision_getter=lambda _: OLD, deployer=lambda *_: self.fail("deployed"))
 
 if __name__ == "__main__":
     unittest.main()
