@@ -1,8 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import { buildApp } from '../../src/server/app.js';
+import { trustedApiPeer } from '../../src/server/api.js';
 import { openDatabase } from '../../src/server/db.js';
 
 describe('household API security boundary', () => {
+  it('restricts explicit peer CIDRs and supports IPv4-mapped Docker peers', () => {
+    const allowed = trustedApiPeer('127.0.0.1/32,172.18.0.0/16,192.168.1.0/24');
+    expect(allowed('127.0.0.1')).toBe(true);
+    expect(allowed('172.18.0.12')).toBe(true);
+    expect(allowed('::ffff:192.168.1.45')).toBe(true);
+    expect(allowed('192.168.0.45')).toBe(false);
+    expect(allowed('8.8.8.8')).toBe(false);
+    for (const invalid of ['', '10.0.0.0/33', '192.168.1.1', 'not-an-ip/12']) {
+      expect(() => trustedApiPeer(invalid)).toThrow();
+    }
+  });
+
   it('applies the LAN restriction to parent routes registered before dashboard routes', async () => {
     const db = openDatabase(':memory:');
     const app = buildApp({ db });
