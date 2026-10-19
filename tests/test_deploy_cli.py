@@ -70,5 +70,41 @@ class CliDeployTests(unittest.TestCase):
                 with self.assertRaisesRegex(d.PreflightError,"diverged"):
                     d.deploy(args,False)
 
+    def test_failed_update_reapplies_prior_image_after_verified_backup(self):
+        with tempfile.TemporaryDirectory() as folder:
+            base = Path(folder)
+            compose = base/"original.yml"
+            resource = base/"resource.yml"
+            volume = base/"volume"
+            volume.mkdir()
+            (volume/"family-hq.sqlite").write_bytes(b"database")
+            compose.write_text(MANIFEST)
+            resource.write_text("services: {}\\n")
+            args = SimpleNamespace(docker="docker", python="python3", compose=compose,
+                resource=resource, state_dir=base/"state", backup_dir=base/"backups",
+                backup_script=base/"backup.py", target_sha=NEW)
+            commands = []
+            def fake_run(argv, timeout=180):
+                commands.append(argv)
+                if argv[1:3] == ["volume", "inspect"]:
+                    return str(volume)
+                if "backup" in argv:
+                    return "BACKUP_OK " + str(base/"snapshot.sqlite") + " bytes=128"
+                if argv[-5:] == ["up", "-d", "--no-deps", "--pull", "always"]:
+                    self.fail("unexpected compose command")
+                return ""
+            def fake_health(docker, sha, **kwargs):
+                if sha == NEW:
+                    raise d.PreflightError("simulated health failure")
+            with patch.object(d, "revision", return_value=OLD), \
+                 patch.object(d, "published_release", return_value=NEW), \
+                 patch.object(d, "run", side_effect=fake_run), \
+                 patch.object(d, "healthy", side_effect=fake_health):
+                with self.assertRaisesRegex(d.PreflightError, "previous image restored"):
+                    d.deploy(args, True)
+            self.assertIn("sha-" + OLD, (args.state_dir/"active.compose.yml").read_text())
+            self.assertEqual(sum("up" in argv for argv in commands), 2)
+            self.assertEqual(sum("verify" in argv for argv in commands), 1)
+
 if __name__ == "__main__":
     unittest.main()
