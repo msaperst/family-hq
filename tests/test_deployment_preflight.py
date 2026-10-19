@@ -63,6 +63,27 @@ class DeploymentPreflightTests(TestCase):
             self.assertEqual(len(calls), 1)
             self.assertFalse(result["deployment_performed"])
 
+    def test_accepts_alias_paths_to_same_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            real = home / "real"
+            alias = home / "alias"
+            real.mkdir()
+            alias.symlink_to(real, target_is_directory=True)
+            compose = alias / "docker-compose.yml"
+            resource = alias / "docker-compose.resource.yml"
+            compose.write_text(YAML)
+            resource.write_text("services:\\n  family-hq:\\n    mem_limit: 0\\n")
+            info = {"Config": {"Labels": {
+                "com.docker.compose.project.config_files":
+                    f"{real / 'docker-compose.yml'},{real / 'docker-compose.resource.yml'}"
+            }}}
+            with patch.object(p, "inspect_container", return_value=(info, OLD)), \\
+                 patch.object(p, "published_release", return_value=NEW), \\
+                 patch.object(p, "command", return_value=""):
+                result = p.preflight("/path/to/docker", compose, resource, NEW)
+            self.assertFalse(result["production_files_modified"])
+
     def test_refuses_unverified_release(self):
         with patch.object(p, "inspect_container", return_value=({}, OLD)), \
              patch.object(p, "published_release", return_value=OLD):
