@@ -33,9 +33,9 @@ The checker exits nonzero if the GitHub API is unavailable or if no validated pu
 
 ## Deployments
 
-An available image is **not** automatically approved for installation. Until a deployment controller is tested with QNAP Container Station and database recovery, use **Applications → Recreate → Update** and change the pinned image tag manually. Keep the existing external `family-hq-data` volume, private environment file, localhost-only listener, and reverse-proxy configuration.
+An available image is **not** automatically approved for installation. The supported production method is an **operator-approved Container Station Applications → Recreate → Validate → Update** with only the pinned image tag changed. Keep the existing external `family-hq-data` volume, private environment file, localhost-only listener, and reverse-proxy configuration.
 
-Do not edit generated Container Station files or use `docker compose down -v`. Before deploying, run and verify the documented local SQLite backup. For rollback, distinguish image rollback from SQLite schema rollback: a schema migration may require restoring the associated database snapshot.
+Do not edit generated Container Station files or use `docker compose down -v`. Before deploying, run and explicitly verify a fresh local SQLite backup. See [the deployment runbook](README.md) for the exact preflight, deployment, health check, and rollback sequence. For rollback, distinguish image rollback from SQLite schema rollback: a schema migration may require restoring the associated database snapshot.
 
 ## Tests
 
