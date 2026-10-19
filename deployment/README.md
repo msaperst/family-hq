@@ -91,3 +91,11 @@ Reload QNAP's cron service using the documented procedure and verify both persis
 **Before enabling unattended deployment**, test a supervised upgrade and a failed-release/image-rollback drill. The existing health gate verifies the Docker container's health and commit revision, not Calendar OAuth, actual chore behavior, or reverse-proxy accessibility. Automated rollback only changes the image; incompatible database migrations still need manual restore. Failure logs should be reviewed; no automatic alerts are configured.
 
 The script may leave Container Station's Applications metadata stale, as previously observed and accepted. Docker Compose and the persistent `active.compose.yml` remain authoritative. Do not edit Container Station's stored YAML or schedule a second deployer for the same service.
+
+### Failed-release quarantine
+
+If an attempted deployment fails (including when image rollback also fails), scheduled polling writes `failed-release.json` to the private deployment state directory. Later `--apply` polls skip that same SHA with `status: quarantined`, avoiding repeated downtime each hour. A newly verified release with a different SHA is eligible normally. Temporary release-discovery problems or backup/preflight failures do **not** quarantine a release, so correctable infrastructure errors can be retried.
+
+Review the deployment failure logs and database state before resetting quarantine. To explicitly retry a quarantined SHA, first disable automated deployment in the private cron wrapper (`AUTO_DEPLOY=no`), inspect the release and recovery plan, then remove **only** `failed-release.json` from the private deployment state directory. Do not remove `active.compose.yml`, `.deploy.lock`, snapshots, or application data. Enable deployment again only when appropriate.
+
+The quarantine file survives NAS restarts because the state directory is persistent. This safeguards retry storms, not failures that occur after a fully healthy but functionally incorrect rollout. Verify Calendar, chores, and the HTTPS frontend separately; image rollback does not restore database contents.
