@@ -51,6 +51,7 @@ jobs:
         run: |
           python3 -m unittest discover -s tests -p 'test_family_hq_backup.py' -v
           python3 -m unittest discover -s tests -p 'test_release_discovery.py' -v
+          python3 -m unittest discover -s tests -p 'test_deployment_preflight.py' -v
 
   browser-e2e:
     name: Playwright browser workflows
