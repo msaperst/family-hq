@@ -31,7 +31,7 @@ class PollTests(unittest.TestCase):
         self.assertFalse(out["deployment_performed"])
 
     def test_apply_passes_verified_target_into_existing_controller(self):
-        args = SimpleNamespace(docker="docker", apply=True)
+        args = SimpleNamespace(docker="docker", apply=True, state_dir=Path("/nonexistent-quarantine-test-dir"))
         observed = []
         def deployer(received, execute):
             observed.append((received.target_sha, execute))
