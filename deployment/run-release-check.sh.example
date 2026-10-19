@@ -1,0 +1,27 @@
+#!/bin/sh
+# NAS local cron runner. Copy and configure absolute paths; no scheduling by default.
+set -eu
+
+# Set to yes only after a successful supervised rollout and rollback drill.
+AUTO_DEPLOY=no
+
+DOCKER=/absolute/path/to/docker
+PYTHON=/absolute/path/to/python3
+SCRIPTS=/absolute/path/to/family-hq-deployment
+STATE_DIR=/absolute/path/to/private/deploy-state
+BACKUP_DIR=/absolute/path/to/private/backups
+
+APP_DIR="$("$DOCKER" inspect family-hq-family-hq-1 --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}')"
+set -- "$PYTHON" "$SCRIPTS/poll_and_deploy.py" \
+  --docker "$DOCKER" --python "$PYTHON" \
+  --compose "$APP_DIR/docker-compose.yml" \
+  --resource "$APP_DIR/docker-compose.resource.yml" \
+  --state-dir "$STATE_DIR" --backup-dir "$BACKUP_DIR" \
+  --backup-script "$SCRIPTS/family_hq_backup.py"
+if [ "$AUTO_DEPLOY" = yes ]; then
+  set -- "$@" --apply
+elif [ "$AUTO_DEPLOY" != no ]; then
+  echo "AUTO_DEPLOY must be yes or no" >&2
+  exit 1
+fi
+exec "$@"

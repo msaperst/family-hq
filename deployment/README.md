@@ -71,3 +71,23 @@ After success, verify `docker compose ls --all`, running image revision, Docker 
 
 Subsequent CLI deployments reuse the stable staged Compose path, not a disposable `/tmp` file. If Container Station changes the saved YAML independently, the script refuses to proceed when the templates no longer match. Do not alternate between Container Station Recreate and the CLI deployer without reconciling the configuration.
 
+
+## Scheduled release checks (NAS pull)
+
+`poll_and_deploy.py` ties together release discovery and the proven `deploy_cli.py` controller. It checks the healthy running revision, resolves the latest published `main` image, and exits without a deployment if the images match. In its **default read-only mode**, it only reports an available update. With `--apply`, it delegates to the existing deployment controller, which independently revalidates the release, obtains a deployment lock, performs a verified SQLite backup, upgrades via persistent Compose, health-checks the new revision, and attempts image rollback on failure.
+
+This is NAS-initiated; GitHub Actions has no inbound access to the network.
+
+Copy `poll_and_deploy.py`, `deploy_cli.py`, `check_release.py`, and `family_hq_backup.py` to the NAS deployment scripts directory. Then copy [`run-release-check.sh.example`](run-release-check.sh.example) to a private NAS-local `run-release-check.sh` and set the actual absolute Docker/Python paths and scripts, backup, and state directories. **Do not run the example unchanged.** Set the wrapper executable and run it manually; inspect the JSON output. It defaults to `AUTO_DEPLOY=no`, so this initial run does not change the container.
+
+To schedule read-only checks on QNAP, add an entry to the NAS's persistent `/etc/config/crontab` using the local wrapper path, for example:
+
+```cron
+17 * * * * /absolute/path/to/run-release-check.sh >> /absolute/path/to/private/release-check.log 2>&1
+```
+
+Reload QNAP's cron service using the documented procedure and verify both persistent and active crontab entries. Avoid duplicate entries. **This repository does not install or enable cron.** When ready to authorize unattended image updates, set `AUTO_DEPLOY=yes` in the private wrapper. Keep the cron job at a conservative hourly cadence to avoid excessive unauthenticated GitHub API requests. Check the log for `up_to_date`, `update_available`, `deployed`, or `error` results, and periodically inspect backup retention and health.
+
+**Before enabling unattended deployment**, test a supervised upgrade and a failed-release/image-rollback drill. The existing health gate verifies the Docker container's health and commit revision, not Calendar OAuth, actual chore behavior, or reverse-proxy accessibility. Automated rollback only changes the image; incompatible database migrations still need manual restore. Failure logs should be reviewed; no automatic alerts are configured.
+
+The script may leave Container Station's Applications metadata stale, as previously observed and accepted. Docker Compose and the persistent `active.compose.yml` remain authoritative. Do not edit Container Station's stored YAML or schedule a second deployer for the same service.
