@@ -23,12 +23,17 @@ Check the repository's Actions run and GHCR package visibility first. A public r
 
 QNAP's built-in proxy must accept the selected HTTPS listener and a valid certificate. Keep other QNAP services and any existing application volumes untouched.
 
-## Updating and rollback
+## Supported deployment: operator-approved Container Station update
 
-1. Record the currently deployed **image digest or full SHA tag** and verify SQLite is backed up before deploying an update.
-2. Check GitHub Actions and GHCR for the newly published image. Change only the `image:` value in the Container Station application YAML and recreate/update the application.
-3. Check container health, browser loading, and calendar and chore functionality. Confirm that the existing SQLite volume remains mounted.
-4. On failure, restore the previous verified image tag and redeploy. **Important:** image rollback cannot reverse a database migration. If a release changes the schema incompatibly, restoring an image alone may not work: recovery must use a corresponding consistent SQLite snapshot.
-5. Never use `docker compose down -v` or delete `family-hq-data` during upgrades.
+GitHub Actions publishes an immutable commit-SHA image after successful gates. On the NAS, use [the read-only release checker](RELEASE_DISCOVERY.md) to identify the currently running revision and the newest verified published tag. **Image publishing and release checking never deploy.**
 
-The NAS-initiated polling, locking, health-check gating, approved release selection, and automatic rollback portion of issue #2 is intentionally deferred until this initial deployment is proven. GHCR publishing is not a NAS rollout.
+1. Confirm the application is healthy and write down the current *full* image tag and the intended new *full* tag. Check the release's database-migration compatibility before proceeding.
+2. Run a fresh NAS-local online SQLite backup using [the documented backup command](../docs/LOCAL_SQLITE_BACKUP.md), and explicitly verify the resulting snapshot (`VERIFY_OK`). Do not deploy if either operation fails. Keep its exact filename available for recovery.
+3. In **Container Station → Applications → family-hq → Recreate**, replace **only** the `image:` SHA tag with the verified target. Use **Validate → Update**. Do not change ports, `env_file`, environment variables, security options, or the external `family-hq-data` volume.
+4. Confirm the container is running and **healthy**, check `http://127.0.0.1:3080/api/health` locally on the NAS, and test the HTTPS dashboard, Calendar and a representative chore interaction. Confirm the running image revision and Container Station's saved image tag both match the intended release.
+5. If the update fails, use **Container Station → Recreate → Validate → Update** with the recorded previous image tag. Recheck container health and representative records. **Image rollback does not undo schema/data migrations**; if incompatible, stop the application and follow the verified SQLite restore procedure in the backup guide. Retain the pre-update snapshot until recovery is no longer needed.
+
+**Never** use `docker compose up` with a staged/temporary Compose file against the Container Station application. A NAS experiment demonstrated that such an update changed Docker's Compose ownership labels and the test application disappeared from Container Station's Applications view; reverting those labels did not make it reappear. Container Station's UI-managed recreate is the supported update path. Do not edit QNAP-managed Compose files directly or run `docker compose down -v`.
+
+This workflow is deliberately **manual**, not unattended deployment, monitoring, or automatic rollback. That is the adopted operating scope; enabling automation would require a separately validated Container Station-aware integration and explicit approval.
+
