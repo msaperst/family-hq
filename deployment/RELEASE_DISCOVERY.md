@@ -33,7 +33,7 @@ The checker exits nonzero if the GitHub API is unavailable or if no validated pu
 
 ## Deployments
 
-An available image is **not** automatically approved for installation. Until a deployment controller is tested with QNAP Container Station and database recovery, use **Applications → Recreate → Update** and change the pinned image tag manually. Keep the existing external `family-hq-data` volume, private environment file, localhost-only listener, and reverse-proxy configuration.
+An available image is **not** automatically approved for installation. For the operator-approved, NAS-initiated Docker Compose deployment and recovery procedure, see [the deployment runbook](README.md). Container Station's Applications view may no longer register a CLI-updated application; this is an accepted tradeoff for the CLI method. Keep the existing external `family-hq-data` volume, private environment file, localhost-only listener, and reverse-proxy configuration.
 
 Do not edit generated Container Station files or use `docker compose down -v`. Before deploying, run and verify the documented local SQLite backup. For rollback, distinguish image rollback from SQLite schema rollback: a schema migration may require restoring the associated database snapshot.
 

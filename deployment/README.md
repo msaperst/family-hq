@@ -23,12 +23,51 @@ Check the repository's Actions run and GHCR package visibility first. A public r
 
 QNAP's built-in proxy must accept the selected HTTPS listener and a valid certificate. Keep other QNAP services and any existing application volumes untouched.
 
-## Updating and rollback
+## NAS-side CLI deployment
 
-1. Record the currently deployed **image digest or full SHA tag** and verify SQLite is backed up before deploying an update.
-2. Check GitHub Actions and GHCR for the newly published image. Change only the `image:` value in the Container Station application YAML and recreate/update the application.
-3. Check container health, browser loading, and calendar and chore functionality. Confirm that the existing SQLite volume remains mounted.
-4. On failure, restore the previous verified image tag and redeploy. **Important:** image rollback cannot reverse a database migration. If a release changes the schema incompatibly, restoring an image alone may not work: recovery must use a corresponding consistent SQLite snapshot.
-5. Never use `docker compose down -v` or delete `family-hq-data` during upgrades.
+The NAS can initiate an image-only update using [`deploy_cli.py`](deploy_cli.py), with a fresh verified SQLite backup and automatic **image** rollback if deployment or health checks fail. This uses a **persistent staged Compose file** and leaves QNAP's saved YAML untouched.
 
-The NAS-initiated polling, locking, health-check gating, approved release selection, and automatic rollback portion of issue #2 is intentionally deferred until this initial deployment is proven. GHCR publishing is not a NAS rollout.
+**Accepted tradeoff:** Container Station may no longer list the application under **Applications** after a CLI update, even while the container is running and managed by Docker Compose. We reproduced this on a disposable QNAP application; restoring its original Compose labels did not restore the UI listing. Treat Docker Compose, not QNAP's Applications view, as the deployment authority after switching to the CLI method. Do not edit QNAP-generated Compose files directly.
+
+The first rollout must be explicitly approved and observed. There is **no scheduled or unattended deployment** in this PR.
+
+### One-time setup
+
+Place `check_release.py`, `deploy_cli.py` and `family_hq_backup.py` together in a private, stable location on the NAS. The deployment state directory must be persistent (not under `/tmp`), writable only by an administrative account, and distinct from the SQLite Docker volume. Run the script with privileges sufficient to access the Docker socket and SQLite backup path.
+
+Use the application Compose and resource-file locations recorded by the running container. Use the existing stable backup directory and verify its normal scheduled backups remain in place.
+
+### Prepare (read-only dry run)
+
+```sh
+CONTAINER=family-hq-family-hq-1
+DOCKER="$(command -v docker)"
+PYTHON="$(command -v python3)"
+APP_DIR="$(docker inspect "$CONTAINER" --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}')"
+RUNNING="$(docker inspect "$CONTAINER" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')"
+TARGET="$("$PYTHON" /path/to/deployment/check_release.py --running-revision "$RUNNING" | "$PYTHON" -c 'import json,sys; print(json.load(sys.stdin)["latest_published_revision"])')"
+
+sudo "$PYTHON" /path/to/deployment/deploy_cli.py \
+  --docker "$DOCKER" --python "$PYTHON" \
+  --compose "$APP_DIR/docker-compose.yml" \
+  --resource "$APP_DIR/docker-compose.resource.yml" \
+  --state-dir /path/to/private/deploy-state \
+  --backup-dir /path/to/private/backups \
+  --backup-script /path/to/deployment/family_hq_backup.py \
+  --target-sha "$TARGET"
+```
+
+Without `--apply`, the script does not create backups, edit files, or change containers.
+
+### Deploy (requires explicit approval)
+
+After reviewing the target image and dry-run result, repeat the same `deploy_cli.py` command with **`--apply`**. The script holds a deployment lock, validates the target against the newest successfully published image on `main`, creates a consistent SQLite snapshot, verifies the backup, writes `active.compose.yml` into the persistent state directory, validates Compose, and runs a service-only `docker compose up -d --no-deps --pull always`. It then waits for the expected healthy image revision.
+
+On failure, the script attempts to reapply the previous image through the *same persistent Compose path* and waits for health. If rollback also fails, an explicit failure is emitted. In either case the printed backup path is for recovery; the tool **does not automatically restore an older database**.
+
+### Validation and recovery
+
+After success, verify `docker compose ls --all`, running image revision, Docker health, localhost `/api/health`, reverse-proxied browser UI, and representative chore/calendar data. Keep the backup snapshot available. An image rollback does **not** reverse incompatible SQLite migrations; stop Family HQ and use the separately tested [SQLite restore procedure](../docs/LOCAL_SQLITE_BACKUP.md) if a database restore is required. Never run `docker compose down -v` or delete `family-hq-data`.
+
+Subsequent CLI deployments reuse the stable staged Compose path, not a disposable `/tmp` file. If Container Station changes the saved YAML independently, the script refuses to proceed when the templates no longer match. Do not alternate between Container Station Recreate and the CLI deployer without reconciling the configuration.
+
