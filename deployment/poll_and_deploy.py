@@ -36,7 +36,7 @@ def record_failure(state_dir, sha):
         with os.fdopen(fd, "w") as output:
             os.fchmod(output.fileno(), 0o600)
             json.dump({"sha": sha, "failed_at": dt.datetime.now(dt.timezone.utc).isoformat()}, output)
-            output.write("\\n")
+            output.write("\n")
             output.flush()
             os.fsync(output.fileno())
         os.replace(name, path)
