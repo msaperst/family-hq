@@ -65,9 +65,17 @@ def preflight(docker, compose, resource, target):
         raise PreflightError("Target is not the newest verified GHCR release")
     labels = info["Config"]["Labels"]
     files = labels.get("com.docker.compose.project.config_files", "").split(",")
-    expected = [str(compose.resolve()), str(resource.resolve())]
-    if files != expected:
-        raise PreflightError("Provided Compose files do not exactly match container ownership labels")
+    if len(files) != 2 or any(not file for file in files):
+        raise PreflightError("Expected exactly two Container Station Compose ownership paths")
+    # QNAP may report a path through a /share alias. Compare file identity,
+    # not the strings spelling those paths, while preserving file ordering.
+    try:
+        matches = all(Path(recorded).samefile(provided)
+                      for recorded, provided in zip(files, (compose, resource)))
+    except OSError as exc:
+        raise PreflightError(f"Cannot verify Compose file ownership: {exc}") from exc
+    if not matches:
+        raise PreflightError("Provided Compose files do not match container ownership labels")
     original = compose.read_text()
     staged = prepare(original, running, target)
     # Keep staging outside the QNAP-managed configuration directory.
