@@ -119,6 +119,6 @@ Recheck the application, database integrity, and representative records afterwar
 
 ## Updates, backup, and recovery
 
-To deploy a revised application manually, verify a consistent database backup first, review schema migration compatibility, build the new image, recreate the container, and re-run health and workflow checks. A Docker volume is **persistence, not backup**. SQLite in WAL mode must be backed up via a consistent snapshot rather than copying only the live database file.
+For the GHCR image-based QNAP Container Station application, follow the [operator-approved image update and rollback procedure](../deployment/README.md). Run and verify a fresh, consistent SQLite backup before changing the pinned image tag through **Container Station → Applications → Recreate → Validate → Update**. Changing images does not reverse incompatible database migrations. Do not use staged CLI Compose updates on Container Station-managed applications.
 
-See [SQLite persistence and restore](PERSISTENCE.md) for snapshot and restore procedures. The automated deployment and rollback process must also account for migrations that cannot safely be reversed by changing image tags alone.
+For a separate, self-managed Docker Compose installation, use the build/Compose commands above, not the Container Station application instructions. In both cases, an external volume is **persistence, not backup**. SQLite WAL data requires a consistent snapshot; see [SQLite persistence and restore](PERSISTENCE.md).
