@@ -24,7 +24,7 @@ class PollTests(unittest.TestCase):
 
     def test_default_is_read_only(self):
         def fail(*_): raise AssertionError("Deployment must not run")
-        out = module.poll(SimpleNamespace(docker="docker", apply=False),
+        out = module.poll(SimpleNamespace(docker="docker", apply=False, state_dir=Path("/nonexistent-quarantine-test-dir")),
                           release_getter=lambda: NEW, revision_getter=lambda _: OLD,
                           deployer=fail)
         self.assertEqual(out["status"], "update_available")
