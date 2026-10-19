@@ -16,7 +16,31 @@ import sys
 import time
 
 from check_release import published_release, SHA
-from deployment_preflight import inspect_container, IMAGE, CONTAINER, SERVICE, PreflightError
+from check_release import IMAGE as BASE_IMAGE
+
+IMAGE = BASE_IMAGE + ':sha-'
+CONTAINER = 'family-hq-family-hq-1'
+SERVICE = 'family-hq'
+
+
+class PreflightError(RuntimeError):
+    pass
+
+
+def inspect_container(docker):
+    data = json.loads(run([docker, 'inspect', CONTAINER]))
+    if len(data) != 1:
+        raise PreflightError('Expected one Family HQ container')
+    info = data[0]
+    labels = info['Config'].get('Labels') or {}
+    if labels.get('com.docker.compose.project') != SERVICE or labels.get('com.docker.compose.service') != SERVICE:
+        raise PreflightError('Unexpected Docker Compose project or service')
+    if not info['State'].get('Running') or info['State'].get('Health', {}).get('Status') != 'healthy':
+        raise PreflightError('Family HQ is not running and healthy')
+    sha = labels.get('org.opencontainers.image.revision', '')
+    if not SHA.fullmatch(sha):
+        raise PreflightError('Missing or invalid image revision')
+    return info, sha
 
 IMAGE_LINE = re.compile(r"(?m)^(\s*image:\s*)(ghcr\.io/msaperst/family-hq:sha-[a-f0-9]{40})(\s*(?:#.*)?)$")
 
