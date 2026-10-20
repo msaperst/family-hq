@@ -127,6 +127,41 @@ Before replacing the database, the utility creates a pre-restore rescue snapshot
 
 For a recovery drill, create a disposable child or chore record, take a snapshot, change the record, restore the snapshot, and confirm the previous state returns. Verify application health and normal functionality after restart. Keep the external volume and Container Station application definition intact.
 
+## Monitor scheduled backup health
+
+The read-only `deployment/check_backup_health.py` checks whether the backup directory contains a recent SQLite snapshot with a valid schema and integrity check. It returns structured JSON and exits nonzero on failures. It does not create/prune backups or modify the application.
+
+Run it with Python 3.9+ and the same private backup directory configured for scheduled snapshots:
+
+```sh
+python3 /path/to/deployment/check_backup_health.py --root /path/to/private/family-hq-backups --max-age-hours 36
+```
+
+The default freshness threshold is **36 hours**, allowing for a daily backup schedule with some delay. A successful response has `"status":"healthy"`; failure includes a machine-readable reason such as `stale_snapshot`, `backup_directory_missing`, `insufficient_snapshots`, or `invalid_snapshot`. The monitor checks the newest file by modification time. A fresh manually generated snapshot can satisfy this check even if the daily cron task fails, so also periodically review the scheduled backup log and cron registration.
+
+For unattended checks, add a **separate** daily cron task after the backup's expected completion window, with output redirected to a private log. Example only:
+
+```cron
+30 4 * * * /absolute/path/to/python3 /absolute/path/to/deployment/check_backup_health.py --root /path/to/private/family-hq-backups >> /path/to/private/backup-health.log 2>&1
+```
+
+**A failing cron exit code does not automatically notify anyone on QNAP.** Configure a monitored alert destination (such as NAS notifications, an existing monitoring system, or a private webhook) separately; do not treat log files as notifications. Avoid sending snapshot paths, database content, OAuth credentials, or other household data to an external alert service. The check is local-only and does not change existing S3/NAS backup jobs.
+
+### Optional QNAP notification-bell events
+
+On QTS 5.2.10, the NAS `/sbin/log_tool -a MESSAGE -t 2` command has been verified to create an Error event in QuLog Center **and** the QTS notification bell without any Notification Center delivery rule. To enable transition-based local alerts, use a persistent, private state file **outside the backup folder's snapshot files**:
+
+```sh
+python3 /path/to/deployment/check_backup_health.py \
+  --root /path/to/private/family-hq-backups \
+  --notify-qnap \
+  --state-file /path/to/private/family-hq-monitor/notification-state.json
+```
+
+Run this as an account allowed to execute `/sbin/log_tool` and write the state directory. On the first healthy check, only the baseline is saved; on the first unhealthy check, one QNAP Error event is emitted. Repeated checks with the same failure do not repeat alerts. A changed failure emits another Error event; recovery emits an Information event. State changes are atomic and locked between concurrent invocations. If event delivery fails, the previous state remains so the next check retries. **A monitoring cron entry does not install itself**; schedule this after your backup job and confirm it appears in the QNAP bell. Email and Qmanager push are intentionally not configured.
+
+The snapshot monitor still prints JSON suitable for local monitoring/Grafana ingestion. Its nonzero exit on an unhealthy backup or notification command failure should also be tracked in the job log. Do not put sensitive household data in event messages.
+
 ## Troubleshooting
 
 | Symptom | Check |
