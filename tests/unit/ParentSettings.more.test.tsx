@@ -5,13 +5,13 @@ import { ParentSettings } from '../../src/client/ParentSettings';
 
 const schedules = [
   { id: 'weekly', name: 'Clean bedroom', mode: 'individual', frequency: 'weekly', intervalCount: 1,
-    weekdays: [], anchorDate: '2026-10-12', endDate: null, rotation: 'none', paused: false, assignees: ['porter'] },
+    weekdays: [], anchorDate: '2026-10-12', endDate: null, rotation: 'none', paused: false, assignees: ['alex'] },
   { id: 'shared', name: 'Feed pets', mode: 'either', frequency: 'daily', intervalCount: 1,
-    weekdays: [], anchorDate: '2026-10-12', endDate: null, rotation: 'none', paused: true, assignees: ['porter', 'miller'] },
+    weekdays: [], anchorDate: '2026-10-12', endDate: null, rotation: 'none', paused: true, assignees: ['alex', 'sam'] },
 ];
-const children = [{ id: 'porter', name: 'Porter' }, { id: 'miller', name: 'Miller' }];
+const children = [{ id: 'alex', name: 'Alex' }, { id: 'sam', name: 'Sam' }];
 const exceptions = [{ originalDate: '2026-12-07', action: 'move', newDate: '2026-12-08', childId: null },
-  { originalDate: '2026-12-14', action: 'reassign', newDate: null, childId: 'miller' }];
+  { originalDate: '2026-12-14', action: 'reassign', newDate: null, childId: 'sam' }];
 const mock = vi.fn<typeof fetch>();
 const response = (data: unknown, ok = true): Response => ({ ok, json: async () => data } as Response);
 beforeEach(() => {
@@ -19,8 +19,8 @@ beforeEach(() => {
     if (options?.method) return response({});
     const path = String(url);
     if (path.endsWith('/preview')) return response({ occurrences: [
-      { key: 'weekly:2026-12-07', startsOn: '2026-12-07', dueOn: '2026-12-13', assignees: ['porter'], skipped: false },
-      { key: 'weekly:2026-12-14', startsOn: '2026-12-14', dueOn: '2026-12-20', assignees: ['miller'], skipped: true },
+      { key: 'weekly:2026-12-07', startsOn: '2026-12-07', dueOn: '2026-12-13', assignees: ['alex'], skipped: false },
+      { key: 'weekly:2026-12-14', startsOn: '2026-12-14', dueOn: '2026-12-20', assignees: ['sam'], skipped: true },
     ] });
     if (path.endsWith('/exceptions')) return response({ exceptions });
     if (path.endsWith('/children')) return response({ children });
@@ -49,8 +49,8 @@ describe('additional parent settings interactions', () => {
     render(<ParentSettings />);
     await screen.findByText('Clean bedroom');
     fireEvent.change(screen.getByLabelText('Who completes it?'), { target: { value: 'each' } });
-    fireEvent.click(screen.getByLabelText('Porter'));
-    fireEvent.click(screen.getByLabelText('Miller'));
+    fireEvent.click(screen.getByLabelText('Alex'));
+    fireEvent.click(screen.getByLabelText('Sam'));
     fireEvent.change(screen.getByLabelText('Repeat'), { target: { value: 'interval_days' } });
     fireEvent.change(screen.getByLabelText('Repeat interval'), { target: { value: '3' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add chore' }));
@@ -83,10 +83,10 @@ describe('additional parent settings interactions', () => {
     await waitFor(() => expect(mock).toHaveBeenCalledWith('/api/parent/schedules/weekly/exceptions/2026-12-07',
       expect.objectContaining({ method: 'PUT', body: '{"action":"move","newDate":"2026-12-08"}' })));
     fireEvent.change(action, { target: { value: 'reassign' } });
-    fireEvent.change(screen.getByLabelText('Assign to'), { target: { value: 'miller' } });
+    fireEvent.change(screen.getByLabelText('Assign to'), { target: { value: 'sam' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save exception' }));
     await waitFor(() => expect(mock).toHaveBeenCalledWith('/api/parent/schedules/weekly/exceptions/2026-12-07',
-      expect.objectContaining({ method: 'PUT', body: '{"action":"reassign","childId":"miller"}' })));
+      expect.objectContaining({ method: 'PUT', body: '{"action":"reassign","childId":"sam"}' })));
   });
   it('removes an exception and refreshes the preview', async () => {
     await edit();
@@ -100,15 +100,15 @@ describe('additional parent settings interactions', () => {
     render(<ParentSettings />);
     await screen.findByText('Clean bedroom');
     fireEvent.change(screen.getByLabelText('Who completes it?'), { target: { value: 'either' } });
-    fireEvent.click(screen.getByLabelText('Porter'));
-    fireEvent.click(screen.getByLabelText('Miller'));
-    fireEvent.click(screen.getByLabelText('Porter'));
-    expect(screen.getByLabelText('Porter')).toHaveProperty('checked', false);
-    expect(screen.getByLabelText('Miller')).toHaveProperty('checked', true);
+    fireEvent.click(screen.getByLabelText('Alex'));
+    fireEvent.click(screen.getByLabelText('Sam'));
+    fireEvent.click(screen.getByLabelText('Alex'));
+    expect(screen.getByLabelText('Alex')).toHaveProperty('checked', false);
+    expect(screen.getByLabelText('Sam')).toHaveProperty('checked', true);
     fireEvent.change(screen.getByLabelText('Chore name'), { target: { value: 'Feed fish' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add chore' }));
     await waitFor(() => expect(mock).toHaveBeenCalledWith('/api/parent/schedules',
-      expect.objectContaining({ method: 'POST', body: expect.stringContaining('"assignees":["miller"]') })));
+      expect.objectContaining({ method: 'POST', body: expect.stringContaining('"assignees":["sam"]') })));
   });
   it('sends changed start and end dates and preserves them when editing', async () => {
     await edit();
