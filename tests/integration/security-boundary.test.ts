@@ -1,9 +1,43 @@
 import { describe, expect, it } from 'vitest';
 import { buildApp } from '../../src/server/app.js';
-import { trustedApiPeer } from '../../src/server/api.js';
+import { allowedApiHosts, trustedApiPeer } from '../../src/server/api.js';
 import { openDatabase } from '../../src/server/db.js';
 
 describe('household API security boundary', () => {
+  it('rejects DNS-rebinding Host authorities when the allowlist is enabled', async () => {
+    const original = process.env.FAMILY_HQ_ALLOWED_HOSTS;
+    process.env.FAMILY_HQ_ALLOWED_HOSTS = 'family.example.test,localhost:3080';
+    const db = openDatabase(':memory:');
+    const app = buildApp({ db });
+    try {
+      for (const host of ['attacker.example.test', 'family.example.test.evil.test', 'localhost:9999']) {
+        const response = await app.inject({ method: 'GET', url: '/api/children',
+          headers: { host }, remoteAddress: '127.0.0.1' });
+        expect(response.statusCode).toBe(403);
+      }
+      const accepted = await app.inject({ method: 'GET', url: '/api/children',
+        headers: { host: 'FAMILY.EXAMPLE.TEST' } });
+      expect(accepted.statusCode).toBe(200);
+      const changed = await app.inject({ method: 'POST', url: '/api/parent/children',
+        headers: { host: 'attacker.example.test', 'content-type': 'application/json' },
+        payload: { name: 'Unexpected' } });
+      expect(changed.statusCode).toBe(403);
+    } finally {
+      await app.close();
+      db.close();
+      if (original === undefined) delete process.env.FAMILY_HQ_ALLOWED_HOSTS;
+      else process.env.FAMILY_HQ_ALLOWED_HOSTS = original;
+    }
+  });
+
+  it('fails closed for malformed Host allowlist entries', () => {
+    for (const invalid of ['', 'host/', 'host:abc', 'host,,other', 'evil.test/path', 'evil..test']) {
+      expect(() => allowedApiHosts(invalid)).toThrow();
+    }
+    expect(allowedApiHosts('localhost:3080')('localhost:3080')).toBe(true);
+    expect(allowedApiHosts('localhost:3080')('localhost')).toBe(false);
+  });
+
   it('blocks cross-site browser reads and writes without trusting forwarded IPs', async () => {
     const db = openDatabase(':memory:');
     const app = buildApp({ db });
