@@ -7,11 +7,11 @@ const fetchMock = vi.fn<typeof fetch>();
 const schedule = {
   id: 'weekly', name: 'Clean bedroom', mode: 'individual', frequency: 'weekly',
   intervalCount: 1, weekdays: [], anchorDate: '2099-10-12', endDate: null,
-  rotation: 'none', paused: false, assignees: ['porter'],
+  rotation: 'none', paused: false, assignees: ['alex'],
 };
-const children = [{ id: 'porter', name: 'Porter' }, { id: 'miller', name: 'Miller' }];
+const children = [{ id: 'alex', name: 'Alex' }, { id: 'sam', name: 'Sam' }];
 const occurrence = { key: 'weekly:2099-10-19', startsOn: '2099-10-19', dueOn: '2099-10-25',
-  assignees: ['porter'], skipped: false };
+  assignees: ['alex'], skipped: false };
 const ok = (value: unknown): Response => ({ ok: true, json: async () => value } as Response);
 beforeEach(() => {
   fetchMock.mockImplementation(async (url, options) => {
@@ -38,7 +38,7 @@ describe('parent settings', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Edit' }));
     expect(screen.getByDisplayValue('Clean bedroom')).toBeTruthy();
     expect(screen.getByLabelText('Anytime during the week, due Sunday')).toHaveProperty('checked', true);
-    expect(screen.getByLabelText('Porter')).toHaveProperty('checked', true);
+    expect(screen.getByLabelText('Alex')).toHaveProperty('checked', true);
     expect(await screen.findByText(/2099-10-19 – 2099-10-25/)).toBeTruthy();
   });
   it('changes weekly deadline to a selected weekday and saves edits', async () => {
@@ -60,9 +60,9 @@ describe('parent settings', () => {
     render(<ParentSettings />);
     await screen.findByText('Clean bedroom');
     fireEvent.change(screen.getByLabelText('Chore name'), { target: { value: 'Feed pets' } });
-    fireEvent.click(screen.getByLabelText('Porter'));
+    fireEvent.click(screen.getByLabelText('Alex'));
     fireEvent.change(screen.getByLabelText('Rotate assignment'), { target: { value: 'daily' } });
-    fireEvent.click(screen.getByLabelText('Miller'));
+    fireEvent.click(screen.getByLabelText('Sam'));
     fireEvent.click(screen.getByRole('button', { name: 'Add chore' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/parent/schedules',
       expect.objectContaining({ method: 'POST', body: expect.stringContaining('"rotation":"daily"') })));
