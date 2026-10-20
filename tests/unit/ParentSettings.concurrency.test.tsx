@@ -5,8 +5,8 @@ import { ParentSettings } from '../../src/client/ParentSettings';
 
 const schedule = { id: 'weekly', name: 'Clean bedroom', mode: 'individual', frequency: 'weekly',
   intervalCount: 1, weekdays: [], anchorDate: '2026-10-12', endDate: null,
-  rotation: 'none', paused: false, assignees: ['porter'] };
-const children = [{ id: 'porter', name: 'Porter' }, { id: 'miller', name: 'Miller' }];
+  rotation: 'none', paused: false, assignees: ['alex'] };
+const children = [{ id: 'alex', name: 'Alex' }, { id: 'sam', name: 'Sam' }];
 const response = (data: unknown) => ({ ok: true, json: async () => data } as Response);
 const mock = vi.fn<typeof fetch>();
 function deferred() {
@@ -44,7 +44,7 @@ describe('concurrent parent operations', () => {
     render(<ParentSettings />);
     await screen.findByText('Clean bedroom');
     fireEvent.change(screen.getByLabelText('Chore name'), { target: { value: 'Laundry' } });
-    fireEvent.click(screen.getByLabelText('Porter'));
+    fireEvent.click(screen.getByLabelText('Alex'));
     const button = screen.getByRole('button', { name: 'Add chore' });
     const form = button.closest('form')!;
     fireEvent.submit(form);
@@ -53,7 +53,7 @@ describe('concurrent parent operations', () => {
     expect(mock.mock.calls.filter(([, options]) => options?.method === 'POST')).toHaveLength(1);
     pending.resolve(response({}));
     await waitFor(() => expect(screen.getByLabelText('Chore name')).toHaveProperty('value', ''));
-    expect(screen.getByLabelText('Porter')).toHaveProperty('checked', false);
+    expect(screen.getByLabelText('Alex')).toHaveProperty('checked', false);
     expect(button).toHaveProperty('disabled', true);
     expect(mock.mock.calls.filter(([, options]) => options?.method === 'POST')).toHaveLength(1);
   });
@@ -132,7 +132,7 @@ describe('concurrent parent operations', () => {
     render(<ParentSettings />);
     await screen.findByText('Clean bedroom');
     fireEvent.change(screen.getByLabelText('Chore name'), { target: { value: 'Laundry' } });
-    fireEvent.click(screen.getByLabelText('Porter'));
+    fireEvent.click(screen.getByLabelText('Alex'));
     const form = screen.getByRole('button', { name: 'Add chore' }).closest('form')!;
     const pause = screen.getByRole('button', { name: 'Pause' });
     act(() => {
