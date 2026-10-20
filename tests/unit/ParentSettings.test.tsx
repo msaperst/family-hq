@@ -6,11 +6,11 @@ import { ParentSettings } from '../../src/client/ParentSettings';
 const fetchMock = vi.fn<typeof fetch>();
 const schedule = {
   id: 'weekly', name: 'Clean bedroom', mode: 'individual', frequency: 'weekly',
-  intervalCount: 1, weekdays: [], anchorDate: '2026-10-12', endDate: null,
+  intervalCount: 1, weekdays: [], anchorDate: '2099-10-12', endDate: null,
   rotation: 'none', paused: false, assignees: ['porter'],
 };
 const children = [{ id: 'porter', name: 'Porter' }, { id: 'miller', name: 'Miller' }];
-const occurrence = { key: 'weekly:2026-10-19', startsOn: '2026-10-19', dueOn: '2026-10-25',
+const occurrence = { key: 'weekly:2099-10-19', startsOn: '2099-10-19', dueOn: '2099-10-25',
   assignees: ['porter'], skipped: false };
 const ok = (value: unknown): Response => ({ ok: true, json: async () => value } as Response);
 beforeEach(() => {
@@ -39,7 +39,7 @@ describe('parent settings', () => {
     expect(screen.getByDisplayValue('Clean bedroom')).toBeTruthy();
     expect(screen.getByLabelText('Anytime during the week, due Sunday')).toHaveProperty('checked', true);
     expect(screen.getByLabelText('Porter')).toHaveProperty('checked', true);
-    expect(await screen.findByText(/2026-10-19 – 2026-10-25/)).toBeTruthy();
+    expect(await screen.findByText(/2099-10-19 – 2099-10-25/)).toBeTruthy();
   });
   it('changes weekly deadline to a selected weekday and saves edits', async () => {
     render(<ParentSettings />);
@@ -72,7 +72,7 @@ describe('parent settings', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Edit' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Exception' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save exception' }));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/parent/schedules/weekly/exceptions/2026-10-19',
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/parent/schedules/weekly/exceptions/2099-10-19',
       expect.objectContaining({ method: 'PUT', body: '{"action":"skip"}' })));
   });
   it('displays a request failure without clearing the form', async () => {
