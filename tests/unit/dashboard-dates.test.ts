@@ -4,7 +4,7 @@ import { dueLabel, sectionFor, visibleByDefault } from '../../src/client/App.js'
 import type { DashboardChore } from '../../src/shared/dashboard.js';
 
 const chore = (dueOn: string, completed = false): DashboardChore => ({
-  id: 'a', name: 'Chore', startsOn: dueOn, dueOn, mode: 'individual', childId: 'porter', completed,
+  id: 'a', name: 'Chore', startsOn: dueOn, dueOn, mode: 'individual', childId: 'alex', completed,
 });
 describe('dashboard dates', () => {
   it('calculates Phoenix dates across UTC boundaries', () => {
