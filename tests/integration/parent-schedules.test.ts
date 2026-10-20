@@ -82,7 +82,7 @@ describe('parent schedule API', () => {
     expect((await app.inject({ method: 'GET', url: '/api/chores?more=false' })).statusCode).toBe(200);
     expect(db.prepare('SELECT mode FROM chore_occurrences WHERE occurrence_key = ?').get(key)).toMatchObject({ mode: 'each' });
     expect(db.prepare('SELECT child_id FROM occurrence_assignees WHERE occurrence_id = ? ORDER BY child_id')
-      .all(key)).toEqual([{ child_id: 'sam' }, { child_id: 'alex' }]);
+      .all(key)).toEqual([{ child_id: 'alex' }, { child_id: 'sam' }]);
   });
 
   it('preserves completed occurrence history after a completion-mode edit', async () => {
