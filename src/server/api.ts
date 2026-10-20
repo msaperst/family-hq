@@ -29,7 +29,7 @@ export function trustedApiPeer(allowed: string | undefined): (ip: string) => boo
     const [address, bits, ...extra] = value.split('/');
     const family = isIP(address);
     const prefix = Number(bits);
-    if (extra.length || !family || !/^\d+$/.test(bits) || prefix > (family === 4 ? 32 : 128))
+    if (extra.length || !family || !/^[0-9]+$/.test(bits) || prefix > (family === 4 ? 32 : 128))
       throw new Error('Invalid API allowlist');
     list.addSubnet(address, prefix, family === 4 ? 'ipv4' : 'ipv6');
   }
@@ -55,19 +55,18 @@ export function registerChoreApi(app: FastifyInstance, db: DatabaseSync): void {
   const peerAllowed = trustedApiPeer(process.env.FAMILY_HQ_API_ALLOWED_CIDRS);
   const hostAllowed = allowedApiHosts(process.env.FAMILY_HQ_ALLOWED_HOSTS);
   app.addHook('onRequest', (request, reply, done) => {
-    if (request.url.startsWith('/api/') && request.url !== '/api/health' &&
-        !hostAllowed(request.headers.host)) {
+    const protectedApi = request.url.startsWith('/api/') && request.url !== '/api/health';
+    if (protectedApi && !hostAllowed(request.headers.host)) {
       void reply.code(403).send({ error: 'Unrecognized household host' });
       return;
     }
-    if (request.url.startsWith('/api/') && request.url !== '/api/health' && !peerAllowed(request.ip)) {
+    if (protectedApi && !peerAllowed(request.ip)) {
       void reply.code(403).send({ error: 'Household LAN access only' });
       return;
     }
     // Fetch Metadata protects even read-only household data from cross-site browser
     // requests. Non-browser clients without this header continue to work on the LAN.
-    if (request.url.startsWith('/api/') && request.url !== '/api/health' &&
-        request.headers['sec-fetch-site'] === 'cross-site') {
+    if (protectedApi && request.headers['sec-fetch-site'] === 'cross-site') {
       void reply.code(403).send({ error: 'Cross-site API access denied' });
       return;
     }
