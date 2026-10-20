@@ -11,17 +11,17 @@ describe('seeded household workflow (disposable SQLite)', () => {
   beforeEach(() => {
     db = openDatabase(':memory:');
     app = buildApp({ db });
-    addChild(db, 'porter', 'Porter');
-    addChild(db, 'miller', 'Miller');
+    addChild(db, 'alex', 'Alex');
+    addChild(db, 'sam', 'Sam');
     addChore(db, 'bed', 'Make bed');
     addChore(db, 'pets', 'Feed pets');
     db.prepare(`INSERT INTO chore_schedules (id, chore_id, mode, frequency, anchor_date)
       VALUES ('bed-schedule', 'bed', 'individual', 'daily', '2026-10-13')`).run();
     db.prepare(`INSERT INTO chore_schedules (id, chore_id, mode, frequency, anchor_date)
       VALUES ('pet-schedule', 'pets', 'either', 'daily', '2026-10-13')`).run();
-    db.prepare("INSERT INTO schedule_assignees (schedule_id, child_id, rotation_order) VALUES ('bed-schedule', 'porter', 0)").run();
-    db.prepare("INSERT INTO schedule_assignees (schedule_id, child_id, rotation_order) VALUES ('pet-schedule', 'porter', 0)").run();
-    db.prepare("INSERT INTO schedule_assignees (schedule_id, child_id, rotation_order) VALUES ('pet-schedule', 'miller', 1)").run();
+    db.prepare("INSERT INTO schedule_assignees (schedule_id, child_id, rotation_order) VALUES ('bed-schedule', 'alex', 0)").run();
+    db.prepare("INSERT INTO schedule_assignees (schedule_id, child_id, rotation_order) VALUES ('pet-schedule', 'alex', 0)").run();
+    db.prepare("INSERT INTO schedule_assignees (schedule_id, child_id, rotation_order) VALUES ('pet-schedule', 'sam', 1)").run();
   });
   afterEach(async () => { await app.close(); db.close(); });
   async function board(date: string): Promise<DashboardResponse> {
@@ -31,15 +31,15 @@ describe('seeded household workflow (disposable SQLite)', () => {
   }
   it('generates, completes, reloads and unchecks real occurrences', async () => {
     const initial = await board('2026-10-13');
-    const bed = initial.columns.find(x => x.id === 'porter')!.chores.find(x => x.name === 'Make bed')!;
-    const update = (completed: boolean) => app.inject({ method: 'PUT', url: '/api/chores/' + encodeURIComponent(bed.id) + '/completion', payload: { childId: 'porter', completed } });
+    const bed = initial.columns.find(x => x.id === 'alex')!.chores.find(x => x.name === 'Make bed')!;
+    const update = (completed: boolean) => app.inject({ method: 'PUT', url: '/api/chores/' + encodeURIComponent(bed.id) + '/completion', payload: { childId: 'alex', completed } });
     expect((await update(true)).json().changed).toBe(true);
     expect((await update(true)).json().changed).toBe(false);
-    expect((await board('2026-10-13')).columns.find(x => x.id === 'porter')!.chores.find(x => x.id === bed.id)!.completed).toBe(true);
-    expect((await board('2026-10-14')).columns.find(x => x.id === 'porter')!.chores.some(x => x.id === bed.id)).toBe(false);
+    expect((await board('2026-10-13')).columns.find(x => x.id === 'alex')!.chores.find(x => x.id === bed.id)!.completed).toBe(true);
+    expect((await board('2026-10-14')).columns.find(x => x.id === 'alex')!.chores.some(x => x.id === bed.id)).toBe(false);
     expect((await update(false)).json().changed).toBe(true);
     const overdue = await board('2026-10-14');
-    expect(overdue.columns.find(x => x.id === 'porter')!.chores.find(x => x.id === bed.id)!.dueOn).toBe('2026-10-13');
+    expect(overdue.columns.find(x => x.id === 'alex')!.chores.find(x => x.id === bed.id)!.dueOn).toBe('2026-10-13');
     expect(db.prepare('SELECT COUNT(*) AS n FROM completion_events').get()).toMatchObject({ n: 2 });
   });
   it('completes shared chores once and hides shared column when nothing is due', async () => {
@@ -62,13 +62,13 @@ describe('overdue completion server contract', () => {
     const db = openDatabase(':memory:');
     const app = buildApp({ db });
     try {
-      addChild(db, 'porter', 'Porter');
+      addChild(db, 'alex', 'Alex');
       addChore(db, 'late', 'Late task');
       db.prepare("INSERT INTO chore_occurrences (id, occurrence_key, chore_id, starts_on, due_on, mode) VALUES ('late-occ', 'late-occ', 'late', '2026-10-12', '2026-10-12', 'individual')").run();
-      db.prepare("INSERT INTO occurrence_assignees (occurrence_id, child_id) VALUES ('late-occ', 'porter')").run();
+      db.prepare("INSERT INTO occurrence_assignees (occurrence_id, child_id) VALUES ('late-occ', 'alex')").run();
       const board = async () => (await app.inject({ method: 'GET', url: '/api/chores?date=2026-10-14' })).json() as DashboardResponse;
       expect((await board()).columns[0].chores.some(chore => chore.id === 'late-occ')).toBe(true);
-      const toggle = (completed: boolean) => app.inject({ method: 'PUT', url: '/api/chores/late-occ/completion', payload: { childId: 'porter', completed } });
+      const toggle = (completed: boolean) => app.inject({ method: 'PUT', url: '/api/chores/late-occ/completion', payload: { childId: 'alex', completed } });
       expect((await toggle(true)).statusCode).toBe(200);
       expect((await board()).columns.every(column => column.chores.every(chore => chore.id !== 'late-occ'))).toBe(true);
       expect((await toggle(false)).statusCode).toBe(200);
