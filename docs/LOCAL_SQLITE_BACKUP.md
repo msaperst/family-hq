@@ -162,6 +162,50 @@ Run this as an account allowed to execute `/sbin/log_tool` and write the state d
 
 The snapshot monitor still prints JSON suitable for local monitoring/Grafana ingestion. Its nonzero exit on an unhealthy backup or notification command failure should also be tracked in the job log. Do not put sensitive household data in event messages.
 
+### Production QNAP monitoring runbook (validated on QTS 5.2.10)
+
+The working deployment uses **two separate schedules**: daily SQLite backup at **02:45 NAS-local time**, and daily health monitoring at **04:00 NAS-local time**. The deployment updater also creates verified snapshots before image updates. Monitoring scans the common private snapshot directory (so a recent deployment snapshot can satisfy freshness even if the daily backup job missed a run).
+
+Keep actual directories and hostnames in private NAS configuration, not public committed scripts. The following variables are placeholders:
+
+```sh
+BACKUP_DIR=/path/to/private/family-hq-backups
+MONITOR=/path/to/deployment/check_backup_health.py
+STATE_DIR=/path/to/private/family-hq-monitor
+PYTHON=/absolute/path/to/python3
+
+sudo mkdir -p "$STATE_DIR"
+sudo chmod 700 "$STATE_DIR"
+
+# This initial healthy run establishes a silent notification baseline.
+sudo "$PYTHON" "$MONITOR" \
+  --root "$BACKUP_DIR" \
+  --max-age-hours 36 \
+  --notify-qnap \
+  --state-file "$STATE_DIR/state.json"
+```
+
+Use a privileged account for this check when snapshot files are mode `0600` and owned by the NAS administrator. A nonprivileged check may report `invalid_snapshot` because it cannot open the SQLite file; **do not loosen backup permissions**. Confirm the result using the existing backup utility's `verify` action or by rerunning the check with the correct permissions before treating a snapshot as corrupt.
+
+For scheduling, first confirm `command -v python3` returns the actual absolute interpreter path. After backing up `/etc/config/crontab`, add **one** monitoring entry (substituting the private paths):
+
+```cron
+0 4 * * * /absolute/path/to/python3 /path/to/deployment/check_backup_health.py --root /path/to/private/family-hq-backups --max-age-hours 36 --notify-qnap --state-file /path/to/private/family-hq-monitor/state.json >> /path/to/private/family-hq-monitor.log 2>&1
+```
+
+QNAP persists cron in `/etc/config/crontab`. Reload using `sudo /etc/init.d/crond.sh reload`; verify the line is present both in the persistent file and in `/tmp/cron/crontabs/admin`. Confirm the job runs with privileges adequate to read the snapshots and write state, that the JSON log says `healthy`, and that the next day's snapshot is recent.
+
+**End-to-end acceptance test performed on QTS 5.2.10:**
+
+1. Run the monitor on an **empty disposable directory**, with a disposable notification state file and `--notify-qnap`. Expect `status=error`, `reason=insufficient_snapshots`, `notification=notified` and one QNAP error-bell entry.
+2. Repeat the same check: expect `notification=unchanged` and **no new error entry**.
+3. Point the same disposable state file at the real snapshot directory, using appropriate privileges: expect `status=healthy`, `notification=notified`, and a recovery **Information** event in QuLog Center.
+4. Run the actual production monitor with its **separate** permanent state file; a first healthy run produces `notification=baseline` and no extra bell alert.
+
+QuLog Center visibly received the error and recovery records; the error also appeared in QTS's built-in notification bell. **Recovery is Information severity and might appear in QuLog without appearing in the error-focused bell view.** No Notification Center email/push rules or Grafana ingestion were configured by this work.
+
+**Operational caveats:** The monitor checks snapshot freshness, SQLite integrity and expected schema, not NAS offsite disaster recovery, actual daily-job completion, or guaranteed delivery of a bell alert when the entire NAS is offline. Snapshot retention remains 30 successful backups; no existing NAS/S3 jobs or backup paths were altered. Maintain a periodic restore drill independently. For a permission-related `invalid_snapshot`, confirm readable-file access before changing code or removing backups.
+
 ## Troubleshooting
 
 | Symptom | Check |
@@ -172,6 +216,9 @@ The snapshot monitor still prints JSON suitable for local monitoring/Grafana ing
 | Database locked | Ensure no restore is attempted while Family HQ is running; investigate other open SQLite connections. |
 | WAL/SHM files present | Do not force replacement. Confirm the service is stopped and investigate a safe checkpoint. |
 | No scheduled snapshot | Check the persistent and active QNAP crontabs, executable paths, and backup log. |
+| Monitor reports `invalid_snapshot` but backups verify as admin | Rerun the monitor as the backup-owning privileged account; mode `0600` snapshots cannot be read by other users. |
+| No new notification despite a continuing failure | Check JSON `notification=unchanged` and the persisted state; repeated identical errors are deliberately deduplicated. |
+| QNAP recovery absent from error bell | The recovery event uses Information severity; inspect QuLog Center's Event Log. |
 
 ## Testing
 
