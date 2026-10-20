@@ -127,6 +127,26 @@ Before replacing the database, the utility creates a pre-restore rescue snapshot
 
 For a recovery drill, create a disposable child or chore record, take a snapshot, change the record, restore the snapshot, and confirm the previous state returns. Verify application health and normal functionality after restart. Keep the external volume and Container Station application definition intact.
 
+## Monitor scheduled backup health
+
+The read-only `deployment/check_backup_health.py` checks whether the backup directory contains a recent SQLite snapshot with a valid schema and integrity check. It returns structured JSON and exits nonzero on failures. It does not create/prune backups or modify the application.
+
+Run it with Python 3.9+ and the same private backup directory configured for scheduled snapshots:
+
+```sh
+python3 /path/to/deployment/check_backup_health.py --root /path/to/private/family-hq-backups --max-age-hours 36
+```
+
+The default freshness threshold is **36 hours**, allowing for a daily backup schedule with some delay. A successful response has `"status":"healthy"`; failure includes a machine-readable reason such as `stale_snapshot`, `backup_directory_missing`, `insufficient_snapshots`, or `invalid_snapshot`. The monitor checks the newest file by modification time. A fresh manually generated snapshot can satisfy this check even if the daily cron task fails, so also periodically review the scheduled backup log and cron registration.
+
+For unattended checks, add a **separate** daily cron task after the backup's expected completion window, with output redirected to a private log. Example only:
+
+```cron
+30 4 * * * /absolute/path/to/python3 /absolute/path/to/deployment/check_backup_health.py --root /path/to/private/family-hq-backups >> /path/to/private/backup-health.log 2>&1
+```
+
+**A failing cron exit code does not automatically notify anyone on QNAP.** Configure a monitored alert destination (such as NAS notifications, an existing monitoring system, or a private webhook) separately; do not treat log files as notifications. Avoid sending snapshot paths, database content, OAuth credentials, or other household data to an external alert service. The check is local-only and does not change existing S3/NAS backup jobs.
+
 ## Troubleshooting
 
 | Symptom | Check |
