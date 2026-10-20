@@ -212,3 +212,31 @@ test('keeps overdue undo available across a dashboard refresh during the 30-seco
   await page.reload();
   await expect(laundry.getByRole('checkbox')).not.toBeChecked();
 });
+
+test('distinguishes active weeklong chores from Sunday-only chores on the dashboard', async ({ page }) => {
+  // Fixed Phoenix-local Tuesday avoids dependence on CI execution date.
+  await page.clock.setFixedTime(new Date('2026-10-20T17:00:00Z'));
+  await page.route('**/api/chores?**', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({
+      today: '2026-10-20', through: '2026-10-26',
+      columns: [{
+        id: 'alex', name: 'Alex', chores: [
+          { id: 'sunday-only', name: 'Clean room on Sunday', startsOn: '2026-10-25', dueOn: '2026-10-25', mode: 'individual', childId: 'alex', completed: false },
+          { id: 'weeklong', name: 'Help with dinner this week', startsOn: '2026-10-19', dueOn: '2026-10-25', mode: 'individual', childId: 'alex', completed: false },
+        ],
+      }],
+    }),
+  }));
+  await page.goto('/');
+  const alex = page.getByRole('region', { name: 'Alex' });
+  const available = alex.locator('.chore-group').filter({ has: page.getByRole('heading', { name: 'Available now' }) });
+  const later = alex.locator('.chore-group').filter({ has: page.getByRole('heading', { name: 'Due later' }) });
+  const weeklong = available.locator('label.chore').filter({ hasText: 'Help with dinner this week' });
+  const sunday = later.locator('label.chore').filter({ hasText: 'Clean room on Sunday' });
+  await expect(weeklong).toBeVisible();
+  await expect(weeklong.locator('small')).toHaveText('Due Sunday');
+  await expect(sunday).toBeVisible();
+  await expect(sunday.locator('small')).toHaveText('Sunday, Oct 25');
+  await expect(sunday.getByRole('checkbox')).toHaveAttribute('aria-label', 'Clean room on Sunday · Sunday, Oct 25');
+});
