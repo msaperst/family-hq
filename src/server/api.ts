@@ -23,7 +23,7 @@ export function isTrustedLanAddress(ip: string): boolean {
 export function trustedApiPeer(allowed: string | undefined): (ip: string) => boolean {
   if (allowed === undefined) return isTrustedLanAddress;
   const entries = allowed.split(',').map(value => value.trim());
-  if (entries.some(value => !value || !value.includes('/'))) throw new Error('Invalid API allowlist');
+  if (entries.some(value => !value?.includes('/'))) throw new Error('Invalid API allowlist');
   const list = new BlockList();
   for (const value of entries) {
     const [address, bits, ...extra] = value.split('/');
