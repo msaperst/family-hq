@@ -14,34 +14,34 @@ const shift = days => new Date(Date.parse(today + 'T00:00:00Z') + days * 8640000
 const monday = shift(-((new Date(today + 'T00:00:00Z').getUTCDay() + 6) % 7));
 try {
   db.exec('BEGIN IMMEDIATE');
-  db.prepare('INSERT INTO children (id,name) VALUES (?,?)').run('porter','Porter');
-  db.prepare('INSERT INTO children (id,name) VALUES (?,?)').run('miller','Miller');
+  db.prepare('INSERT INTO children (id,name) VALUES (?,?)').run('alex','Alex');
+  db.prepare('INSERT INTO children (id,name) VALUES (?,?)').run('sam','Sam');
   for (const [id,name] of [['bed','Make bed'],['pets','Feed pets'],['room','Clean bedroom'],['laundry','Put laundry away'],['yesterday-done','Yesterday completed test chore'],['today-done','Today completed test chore']]) {
     db.prepare('INSERT INTO chores (id,name) VALUES (?,?)').run(id,name);
   }
   for (const [id,chore,mode,frequency,anchor] of [
-    ['porter-bed','bed','individual','daily',today],
-    ['miller-bed','bed','individual','daily',today],
+    ['alex-bed','bed','individual','daily',today],
+    ['sam-bed','bed','individual','daily',today],
     ['pets-shared','pets','either','daily',today],
     ['room-weekly','room','individual','weekly',monday],
   ]) {
     db.prepare('INSERT INTO chore_schedules (id,chore_id,mode,frequency,anchor_date) VALUES (?,?,?,?,?)').run(id,chore,mode,frequency,anchor);
   }
   for (const [schedule,child,order] of [
-    ['porter-bed','porter',0],['miller-bed','miller',0],
-    ['pets-shared','porter',0],['pets-shared','miller',1],
-    ['room-weekly','porter',0],
+    ['alex-bed','alex',0],['sam-bed','sam',0],
+    ['pets-shared','alex',0],['pets-shared','sam',1],
+    ['room-weekly','alex',0],
   ]) db.prepare('INSERT INTO schedule_assignees (schedule_id,child_id,rotation_order) VALUES (?,?,?)').run(schedule,child,order);
   db.prepare('INSERT INTO chore_occurrences (id,occurrence_key,chore_id,starts_on,due_on,mode) VALUES (?,?,?,?,?,?)')
     .run('overdue-laundry','overdue-laundry','laundry',shift(-1),shift(-1),'individual');
-  db.prepare('INSERT INTO occurrence_assignees (occurrence_id,child_id) VALUES (?,?)').run('overdue-laundry','porter');
+  db.prepare('INSERT INTO occurrence_assignees (occurrence_id,child_id) VALUES (?,?)').run('overdue-laundry','alex');
   // Explicit completion fixtures for dashboard date-filtering assertions.
   for (const [id, due] of [['yesterday-done', shift(-1)], ['today-done', today]]) {
     db.prepare('INSERT INTO chore_occurrences (id, occurrence_key, chore_id, starts_on, due_on, mode) VALUES (?,?,?,?,?,?)')
       .run(id, id, id, due, due, 'individual');
-    db.prepare('INSERT INTO occurrence_assignees (occurrence_id, child_id) VALUES (?,?)').run(id, 'porter');
+    db.prepare('INSERT INTO occurrence_assignees (occurrence_id, child_id) VALUES (?,?)').run(id, 'alex');
     db.prepare('INSERT INTO chore_completions (occurrence_id, child_id, completed, performed_by, updated_at) VALUES (?, ?, 1, ?, ?)')
-      .run(id, '', 'porter', new Date().toISOString());
+      .run(id, '', 'alex', new Date().toISOString());
   }
   db.exec('COMMIT');
   process.stdout.write('Seeded disposable Playwright DB for ' + today + '\n');

@@ -84,8 +84,8 @@ test('shows first-run setup only for an empty child roster', async ({ page }) =>
 
 test('shows active child columns', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('region', { name: 'Porter' })).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Miller' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Alex' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Sam' })).toBeVisible();
 });
 test('shows a single shared column', async ({ page }) => {
   await page.goto('/');
@@ -95,17 +95,17 @@ test('shows a single shared column', async ({ page }) => {
 });
 test('shows overdue chores with their original due date', async ({ page }) => {
   await page.goto('/');
-  const porter = page.getByRole('region', { name: 'Porter' });
-  await expect(porter.getByText('Put laundry away')).toBeVisible();
-  await expect(porter.locator('label.chore').filter({ hasText: 'Put laundry away' }).getByText('Yesterday · Overdue')).toBeVisible();
+  const alex = page.getByRole('region', { name: 'Alex' });
+  await expect(alex.getByText('Put laundry away')).toBeVisible();
+  await expect(alex.locator('label.chore').filter({ hasText: 'Put laundry away' }).getByText('Yesterday · Overdue')).toBeVisible();
 });
 test('shows flexible weekly chores before the deadline', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('region', { name: 'Porter' }).getByText('Clean bedroom').first()).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Alex' }).getByText('Clean bedroom').first()).toBeVisible();
 });
 test('retains a completed overdue chore for undo, but hides it after reload', async ({ page }) => {
   await page.goto('/');
-  const laundry = page.getByRole('region', { name: 'Porter' }).locator('label.chore').filter({ hasText: 'Put laundry away' });
+  const laundry = page.getByRole('region', { name: 'Alex' }).locator('label.chore').filter({ hasText: 'Put laundry away' });
   await laundry.getByRole('checkbox').click();
   await expect(laundry.getByRole('checkbox')).toBeChecked();
   await page.reload();
@@ -113,7 +113,7 @@ test('retains a completed overdue chore for undo, but hides it after reload', as
 });
 test('persists completion across reload', async ({ page }) => {
   await page.goto('/');
-  const bed = page.getByRole('region', { name: 'Porter' }).locator('label.chore').filter({ hasText: 'Make bed' }).first().getByRole('checkbox');
+  const bed = page.getByRole('region', { name: 'Alex' }).locator('label.chore').filter({ hasText: 'Make bed' }).first().getByRole('checkbox');
   await bed.click();
   await expect(bed).toBeChecked();
   await page.reload();
@@ -121,7 +121,7 @@ test('persists completion across reload', async ({ page }) => {
 });
 test('supports undoing a completed chore', async ({ page }) => {
   await page.goto('/');
-  const bed = page.getByRole('region', { name: 'Porter' }).locator('label.chore').filter({ hasText: 'Make bed' }).first().getByRole('checkbox');
+  const bed = page.getByRole('region', { name: 'Alex' }).locator('label.chore').filter({ hasText: 'Make bed' }).first().getByRole('checkbox');
   await bed.click();
   await expect(bed).toBeChecked();
   await bed.click();
@@ -129,8 +129,8 @@ test('supports undoing a completed chore', async ({ page }) => {
 });
 test('shows all seven days of chores without an expansion control', async ({ page }) => {
   await page.goto('/');
-  const porter = page.getByRole('region', { name: 'Porter' });
-  await expect(porter.locator('label.chore').filter({ hasText: 'Make bed' })).toHaveCount(7);
+  const alex = page.getByRole('region', { name: 'Alex' });
+  await expect(alex.locator('label.chore').filter({ hasText: 'Make bed' })).toHaveCount(7);
   await expect(page.getByRole('button', { name: /Show more upcoming chores|Hide upcoming chores/ })).toHaveCount(0);
 });
 test('shared completion persists across browser tabs', async ({ browser }) => {
@@ -152,7 +152,7 @@ test('shared completion persists across browser tabs', async ({ browser }) => {
 
 test('undoes an overdue completion before the window expires', async ({ page }) => {
   await page.goto('/');
-  const laundry = page.getByRole('region', { name: 'Porter' }).locator('label.chore').filter({ hasText: 'Put laundry away' });
+  const laundry = page.getByRole('region', { name: 'Alex' }).locator('label.chore').filter({ hasText: 'Put laundry away' });
   await laundry.getByRole('checkbox').click();
   await expect(laundry.getByRole('checkbox')).toBeChecked();
   await laundry.getByRole('checkbox').click();
@@ -164,7 +164,7 @@ test('undoes an overdue completion before the window expires', async ({ page }) 
 test('completed overdue chore disappears after 30 seconds without reload', async ({ page }) => {
   await page.clock.install();
   await page.goto('/');
-  const laundry = page.getByRole('region', { name: 'Porter' }).locator('label.chore').filter({ hasText: 'Put laundry away' });
+  const laundry = page.getByRole('region', { name: 'Alex' }).locator('label.chore').filter({ hasText: 'Put laundry away' });
   await laundry.getByRole('checkbox').click();
   await expect(laundry.getByRole('checkbox')).toBeChecked();
   await page.clock.fastForward(31_000);
@@ -181,7 +181,7 @@ test('does not show chores completed on previous days', async ({ page }) => {
 
 test('keeps chores completed today visible and checked after reload', async ({ page }) => {
   await page.goto('/');
-  const chore = page.getByRole('region', { name: 'Porter' }).locator('label.chore').filter({ hasText: 'Today completed test chore' });
+  const chore = page.getByRole('region', { name: 'Alex' }).locator('label.chore').filter({ hasText: 'Today completed test chore' });
   await expect(chore).toBeVisible();
   await expect(chore.getByRole('checkbox')).toBeChecked();
   await page.reload();
@@ -192,7 +192,7 @@ test('keeps chores completed today visible and checked after reload', async ({ p
 test('keeps overdue undo available across a dashboard refresh during the 30-second window', async ({ page }) => {
   await page.clock.install();
   await page.goto('/');
-  const laundry = page.getByRole('region', { name: 'Porter' }).locator('label.chore').filter({ hasText: 'Put laundry away' });
+  const laundry = page.getByRole('region', { name: 'Alex' }).locator('label.chore').filter({ hasText: 'Put laundry away' });
   const checkbox = laundry.getByRole('checkbox');
   await expect(checkbox).not.toBeChecked();
 

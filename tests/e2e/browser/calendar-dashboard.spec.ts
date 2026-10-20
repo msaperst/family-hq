@@ -15,7 +15,7 @@ test('renders calendar beside chores at landscape tablet size', async ({ page })
     status: 200, contentType: 'application/json', body: JSON.stringify({ events: [timed('Family appointment', shift(1))], stale: false }),
   }));
   await page.goto('/');
-  const chores = page.getByRole('region', { name: 'Porter' });
+  const chores = page.getByRole('region', { name: 'Alex' });
   const calendar = page.getByRole('region', { name: 'Family calendar' });
   await expect(chores).toBeVisible();
   await expect(calendar.getByText('Family appointment')).toBeVisible();
@@ -33,7 +33,7 @@ test('keeps chores before calendar on a narrow phone viewport', async ({ page })
     status: 200, contentType: 'application/json', body: JSON.stringify({ events: [timed('Family appointment', shift(1))], stale: false }),
   }));
   await page.goto('/');
-  const chores = page.getByRole('region', { name: 'Porter' });
+  const chores = page.getByRole('region', { name: 'Alex' });
   const calendar = page.getByRole('region', { name: 'Family calendar' });
   await expect(chores).toBeVisible();
   await expect(calendar.getByText('Family appointment')).toBeVisible();
@@ -51,7 +51,7 @@ test('calendar outage leaves chores usable', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('region', { name: 'Family calendar' }).getByRole('alert')).toHaveText('Unable to load calendar');
   await expect(page.getByRole('region', { name: 'Family calendar' }).getByRole('button', { name: 'Load more events' })).toHaveCount(0);
-  const bed = page.getByRole('region', { name: 'Porter' }).locator('label.chore').filter({ hasText: 'Make bed' }).first().getByRole('checkbox');
+  const bed = page.getByRole('region', { name: 'Alex' }).locator('label.chore').filter({ hasText: 'Make bed' }).first().getByRole('checkbox');
   await bed.click();
   await expect(bed).toBeChecked();
 });
@@ -83,7 +83,7 @@ test('shows cached calendar warning while chores remain visible', async ({ page 
   const calendar = page.getByRole('region', { name: 'Family calendar' });
   await expect(calendar.getByRole('status')).toHaveText('Showing saved calendar events');
   await expect(calendar.getByText('Saved appointment')).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Porter' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Alex' })).toBeVisible();
 });
 
 test('both service failures keep the chore columns and calendar panel visible', async ({ page }) => {
@@ -91,7 +91,7 @@ test('both service failures keep the chore columns and calendar panel visible', 
   await page.route('**/api/calendar/events?*', route => route.fulfill({ status: 503, body: '{}' }));
   await page.goto('/');
   await expect(page.getByRole('region', { name: 'Chores' }).getByRole('alert')).toHaveText('Unable to load chores');
-  await expect(page.getByRole('region', { name: 'Porter' })).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Alex' })).toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Family calendar' }).getByRole('alert')).toHaveText('Unable to load calendar');
   await expect(page.locator('.dashboard-header .connection')).toHaveCount(0);
 });

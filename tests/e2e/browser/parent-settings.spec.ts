@@ -65,12 +65,12 @@ test('requires paused assignments before deactivation and supports reactivation'
 
 test('rejects duplicate child names and protects assigned children from deletion', async ({ page }) => {
   await page.goto('/settings');
-  await page.getByLabel('Child name').fill('Porter');
+  await page.getByLabel('Child name').fill('Alex');
   await page.getByRole('button', { name: 'Add child' }).click();
   await expect(page.getByRole('alert')).toContainText('already exists');
 
   const childRow = page.locator('.settings-panel').filter({ has: page.getByRole('heading', { name: 'Children' }) })
-    .locator('.schedule-list li').filter({ hasText: 'Porter' });
+    .locator('.schedule-list li').filter({ hasText: 'Alex' });
   page.once('dialog', dialog => void dialog.accept());
   await childRow.getByRole('button', { name: 'Delete' }).click();
   await expect(page.getByRole('alert')).toContainText('deactivate instead of deleting');
@@ -93,11 +93,11 @@ test('creates a recurring chore and displays it on the dashboard', async ({ page
   await page.goto('/settings');
   await expect(page.getByRole('heading', { name: 'Parent settings', exact: false })).toBeVisible();
   await page.getByLabel('Chore name').fill('Playwright new chore');
-  await page.getByLabel('Porter').check();
+  await page.getByLabel('Alex').check();
   await page.getByRole('button', { name: 'Add chore' }).click();
   await expect(page.getByText('Playwright new chore').first()).toBeVisible();
   await page.goto('/');
-  await expect(page.getByRole('region', { name: 'Porter' }).getByText('Playwright new chore').first()).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Alex' }).getByText('Playwright new chore').first()).toBeVisible();
 });
 
 test('edits and pauses a recurring chore without changing completed history', async ({ page }) => {
@@ -190,24 +190,24 @@ test('exception removal stays disabled while a delete is pending', async ({ page
 test('changing today’s generated individual bed chore to each child keeps the dashboard working', async ({ page }) => {
   // Opening the dashboard first persists today's individual occurrence.
   await page.goto('/');
-  await expect(page.getByRole('region', { name: 'Porter' }).getByText('Make bed').first()).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Alex' }).getByText('Make bed').first()).toBeVisible();
 
   await page.goto('/settings');
-  const porterBed = page.locator('.schedule-list li')
-    .filter({ hasText: 'Make bed' }).filter({ hasText: 'Porter' }).first();
-  await porterBed.getByRole('button', { name: 'Edit' }).click();
+  const alexBed = page.locator('.schedule-list li')
+    .filter({ hasText: 'Make bed' }).filter({ hasText: 'Alex' }).first();
+  await alexBed.getByRole('button', { name: 'Edit' }).click();
   await page.getByLabel('Who completes it?').selectOption('each');
-  await page.getByLabel('Porter').check();
-  await page.getByLabel('Miller').check();
+  await page.getByLabel('Alex').check();
+  await page.getByLabel('Sam').check();
   await page.getByRole('button', { name: 'Save changes' }).click();
-  await expect(porterBed).toContainText('Porter, Miller');
+  await expect(alexBed).toContainText('Alex, Sam');
 
   const failures: number[] = [];
   page.on('response', response => {
     if (response.url().includes('/api/chores') && response.status() >= 500) failures.push(response.status());
   });
   await page.goto('/');
-  await expect(page.getByRole('region', { name: 'Porter' }).getByText('Make bed').first()).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Miller' }).getByText('Make bed').first()).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Alex' }).getByText('Make bed').first()).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Sam' }).getByText('Make bed').first()).toBeVisible();
   expect(failures).toEqual([]);
 });
