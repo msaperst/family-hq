@@ -5,10 +5,10 @@ import { generateOccurrences, previewOccurrences } from '../../src/server/recurr
 
 function fixture(options: {frequency?: string; weekdays?: number[]; rotation?: string; mode?: string; anchor?: string; interval?: number; end?: string; children?: string[]} = {}) {
   const db = openDatabase(':memory:');
-  addChild(db, 'porter', 'Porter'); addChild(db, 'miller', 'Miller'); addChore(db, 'chore', 'Chore');
+  addChild(db, 'alex', 'Alex'); addChild(db, 'sam', 'Sam'); addChore(db, 'chore', 'Chore');
   db.prepare('INSERT INTO chore_schedules (id,chore_id,mode,frequency,interval_count,weekdays,anchor_date,end_date,rotation) VALUES (?,?,?,?,?,?,?,?,?)')
     .run('schedule','chore',options.mode ?? 'individual',options.frequency ?? 'daily',options.interval ?? 1,JSON.stringify(options.weekdays ?? []),options.anchor ?? '2026-10-12',options.end ?? null,options.rotation ?? 'none');
-  for (const [index,child] of (options.children ?? ['porter']).entries()) db.prepare('INSERT INTO schedule_assignees (schedule_id,child_id,rotation_order) VALUES (?,?,?)').run('schedule',child,index);
+  for (const [index,child] of (options.children ?? ['alex']).entries()) db.prepare('INSERT INTO schedule_assignees (schedule_id,child_id,rotation_order) VALUES (?,?,?)').run('schedule',child,index);
   return db;
 }
 describe('recurrence engine', () => {
@@ -27,36 +27,36 @@ describe('recurrence engine', () => {
     } finally { db.close(); }
   });
   it('alternates weekly across October and year boundaries', () => {
-    const db = fixture({rotation:'weekly',children:['porter','miller'],anchor:'2026-12-28'});
+    const db = fixture({rotation:'weekly',children:['alex','sam'],anchor:'2026-12-28'});
     try {
       const x=previewOccurrences(db,'schedule','2026-12-28','2027-01-11');
-      expect(x.filter(v=>v.startsOn==='2026-12-28')[0].assignees).toEqual(['porter']);
-      expect(x.filter(v=>v.startsOn==='2027-01-04')[0].assignees).toEqual(['miller']);
-      expect(x.filter(v=>v.startsOn==='2027-01-11')[0].assignees).toEqual(['porter']);
+      expect(x.filter(v=>v.startsOn==='2026-12-28')[0].assignees).toEqual(['alex']);
+      expect(x.filter(v=>v.startsOn==='2027-01-04')[0].assignees).toEqual(['sam']);
+      expect(x.filter(v=>v.startsOn==='2027-01-11')[0].assignees).toEqual(['alex']);
     } finally { db.close(); }
   });
   it('alternates by scheduled occurrence for non-daily weekdays, independent of preview window', () => {
-    const db = fixture({ weekdays: [0, 2, 4], rotation: 'daily', children: ['porter', 'miller'] });
+    const db = fixture({ weekdays: [0, 2, 4], rotation: 'daily', children: ['alex', 'sam'] });
     try {
       const range = previewOccurrences(db, 'schedule', '2026-10-12', '2026-10-23');
       expect(range.map(x => [x.startsOn, x.assignees[0]])).toEqual([
-        ['2026-10-12', 'porter'], ['2026-10-14', 'miller'], ['2026-10-16', 'porter'],
-        ['2026-10-19', 'miller'], ['2026-10-21', 'porter'], ['2026-10-23', 'miller'],
+        ['2026-10-12', 'alex'], ['2026-10-14', 'sam'], ['2026-10-16', 'alex'],
+        ['2026-10-19', 'sam'], ['2026-10-21', 'alex'], ['2026-10-23', 'sam'],
       ]);
       expect(previewOccurrences(db, 'schedule', '2026-10-19', '2026-10-23').map(x => x.assignees[0]))
-        .toEqual(['miller', 'porter', 'miller']);
+        .toEqual(['sam', 'alex', 'sam']);
     } finally { db.close(); }
   });
   it('alternates for every N days and retains skipped dates in rotation', () => {
     const db = fixture({ frequency: 'interval_days', interval: 2, anchor: '2026-10-12',
-      rotation: 'daily', children: ['porter', 'miller'] });
+      rotation: 'daily', children: ['alex', 'sam'] });
     try {
       db.prepare("INSERT INTO occurrence_overrides (id,schedule_id,original_date,action) VALUES ('skip','schedule','2026-10-14','skip')").run();
       expect(previewOccurrences(db, 'schedule', '2026-10-12', '2026-10-20')
         .map(x => [x.startsOn, x.assignees[0], x.skipped])).toEqual([
-          ['2026-10-12', 'porter', false], ['2026-10-14', 'miller', true],
-          ['2026-10-16', 'porter', false], ['2026-10-18', 'miller', false],
-          ['2026-10-20', 'porter', false],
+          ['2026-10-12', 'alex', false], ['2026-10-14', 'sam', true],
+          ['2026-10-16', 'alex', false], ['2026-10-18', 'sam', false],
+          ['2026-10-20', 'alex', false],
         ]);
     } finally { db.close(); }
   });
@@ -71,13 +71,13 @@ describe('recurrence engine', () => {
     finally {db.close();}
   });
   it('handles each-child obligations independently and retains completion after regeneration', () => {
-    const db=fixture({mode:'each',children:['porter','miller']});
+    const db=fixture({mode:'each',children:['alex','sam']});
     try {
       generateOccurrences(db,'schedule','2026-10-12','2026-10-12');
-      setCompletion(db,'schedule:2026-10-12','porter',true);
+      setCompletion(db,'schedule:2026-10-12','alex',true);
       generateOccurrences(db,'schedule','2026-10-12','2026-10-12');
-      expect(getCompletion(db,'schedule:2026-10-12','porter')).toBe(true);
-      expect(getCompletion(db,'schedule:2026-10-12','miller')).toBe(false);
+      expect(getCompletion(db,'schedule:2026-10-12','alex')).toBe(true);
+      expect(getCompletion(db,'schedule:2026-10-12','sam')).toBe(false);
     } finally {db.close();}
   });
   it('skips a specific occurrence without changing its neighbors', () => {
@@ -86,7 +86,7 @@ describe('recurrence engine', () => {
       db.prepare("INSERT INTO occurrence_overrides (id,schedule_id,original_date,action) VALUES ('skip','schedule','2026-10-13','skip')").run();
       generateOccurrences(db,'schedule','2026-10-12','2026-10-14');
       expect((db.prepare("SELECT status FROM chore_occurrences WHERE id = 'schedule:2026-10-13'").get() as {status:string}).status).toBe('skipped');
-      expect(()=>setCompletion(db,'schedule:2026-10-13','porter',true)).toThrow();
+      expect(()=>setCompletion(db,'schedule:2026-10-13','alex',true)).toThrow();
       expect((db.prepare("SELECT status FROM chore_occurrences WHERE id = 'schedule:2026-10-14'").get() as {status:string}).status).toBe('active');
     } finally {db.close();}
   });
@@ -115,7 +115,7 @@ describe('recurrence engine', () => {
     } finally { db.close(); }
   });
   it('rejects an individual schedule with multiple assignees and an empty schedule', () => {
-    const db = fixture({children:['porter','miller']});
+    const db = fixture({children:['alex','sam']});
     try {
       expect(()=>previewOccurrences(db,'schedule','2026-10-12','2026-10-13')).toThrow('Invalid schedule assignees');
       db.prepare("DELETE FROM schedule_assignees WHERE schedule_id = 'schedule'").run();
