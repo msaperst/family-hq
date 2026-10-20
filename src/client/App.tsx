@@ -13,21 +13,23 @@ function weekEnd(today: string): string {
   const offset = (7 - date.getUTCDay()) % 7;
   return new Date(date.getTime() + offset * 86_400_000).toISOString().slice(0, 10);
 }
-export function sectionFor(chore: DashboardChore, today: string): 'overdue' | 'today' | 'later' | 'upcoming' {
+export function sectionFor(chore: DashboardChore, today: string): 'overdue' | 'today' | 'available' | 'later' | 'upcoming' {
   if (chore.dueOn < today && !chore.completed) return 'overdue';
   if (chore.dueOn <= today) return 'today';
+  // Multi-day chores can be done as soon as their window opens.
+  if (chore.startsOn < chore.dueOn && chore.startsOn <= today) return 'available';
   if (chore.dueOn <= weekEnd(today)) return 'later';
   return 'upcoming';
 }
 export function visibleByDefault(chore: DashboardChore, today: string): boolean {
   const group = sectionFor(chore, today);
-  if (group === 'overdue' || group === 'today') return true;
+  if (group === 'overdue' || group === 'today' || group === 'available') return true;
   if (chore.completed && chore.dueOn >= today) return true;
   if (group !== 'later') return false;
   const tomorrow = new Date(Date.parse(today + 'T00:00:00Z') + 86_400_000).toISOString().slice(0, 10);
   // A flexible multi-day obligation can be done any time before its deadline.
   // Ordinary future daily occurrences remain hidden until tomorrow.
-  return chore.dueOn === tomorrow || (chore.startsOn < chore.dueOn && chore.startsOn <= today);
+  return chore.dueOn === tomorrow;
 }
 export function dueLabel(chore: DashboardChore, today: string): string {
   const delta = Math.round((Date.parse(chore.dueOn + 'T00:00:00Z') - Date.parse(today + 'T00:00:00Z')) / 86_400_000);
@@ -35,12 +37,13 @@ export function dueLabel(chore: DashboardChore, today: string): string {
   if (delta < -1) return `${-delta} days overdue`;
   if (delta === 0) return 'Today';
   if (delta === 1) return 'Tomorrow';
-  if (chore.dueOn === weekEnd(today)) return 'End of week · Sunday';
+  if (chore.startsOn < chore.dueOn && chore.startsOn <= today && chore.dueOn === weekEnd(today)) return 'Due Sunday';
   return new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', weekday: 'long', month: 'short', day: 'numeric' }).format(new Date(chore.dueOn + 'T00:00:00Z'));
 }
 const groups = [
   { id: 'overdue', title: 'Overdue' },
   { id: 'today', title: 'Due today' },
+  { id: 'available', title: 'Available now' },
   { id: 'later', title: 'Due later' },
   { id: 'upcoming', title: 'Coming up' },
 ] as const;
