@@ -77,7 +77,7 @@ def notify(result, state_path, log_tool):
             with os.fdopen(fd, "w") as output:
                 os.fchmod(output.fileno(), 0o600)
                 json.dump({"state": current}, output)
-                output.write("\\n")
+                output.write("\n")
                 output.flush()
                 os.fsync(output.fileno())
             os.replace(temporary, state_path)
