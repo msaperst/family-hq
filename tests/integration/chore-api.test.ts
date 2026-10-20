@@ -35,7 +35,7 @@ describe('chore API', () => {
     occurrence('each', 'each', ['alex', 'sam']);
     occurrence('shared', 'either', ['alex', 'sam']);
     const result = await get();
-    expect(result.columns.map(x => x.id)).toEqual(['sam', 'alex', 'either']);
+    expect(result.columns.map(x => x.id)).toEqual(['alex', 'sam', 'either']);
     expect(result.columns.map(x => x.chores.length)).toEqual([1, 1, 1]);
     expect(result.columns[2].chores[0].childId).toBeNull();
   });
