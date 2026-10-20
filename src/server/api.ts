@@ -39,9 +39,27 @@ export function trustedApiPeer(allowed: string | undefined): (ip: string) => boo
     return family !== 0 && list.check(peer, family === 4 ? 'ipv4' : 'ipv6');
   };
 }
+/** Exact request Host authorities approved by the deployment's trusted proxy. */
+export function allowedApiHosts(config: string | undefined): (host: string | undefined) => boolean {
+  if (config === undefined) return () => true;
+  const hosts = config.split(',').map(host => host.trim().toLowerCase());
+  const valid = /^(?:[a-z0-9.-]+|\[[0-9a-f:]+\])(?::[0-9]{1,5})?$/;
+  if (hosts.some(host => !valid.test(host) || host.includes('..'))) {
+    throw new Error('Invalid FAMILY_HQ_ALLOWED_HOSTS configuration');
+  }
+  const allowlist = new Set(hosts);
+  return host => typeof host === 'string' && allowlist.has(host.toLowerCase());
+}
+
 export function registerChoreApi(app: FastifyInstance, db: DatabaseSync): void {
   const peerAllowed = trustedApiPeer(process.env.FAMILY_HQ_API_ALLOWED_CIDRS);
+  const hostAllowed = allowedApiHosts(process.env.FAMILY_HQ_ALLOWED_HOSTS);
   app.addHook('onRequest', (request, reply, done) => {
+    if (request.url.startsWith('/api/') && request.url !== '/api/health' &&
+        !hostAllowed(request.headers.host)) {
+      void reply.code(403).send({ error: 'Unrecognized household host' });
+      return;
+    }
     if (request.url.startsWith('/api/') && request.url !== '/api/health' && !peerAllowed(request.ip)) {
       void reply.code(403).send({ error: 'Household LAN access only' });
       return;
