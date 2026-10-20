@@ -4,7 +4,7 @@
 
 ## Users and devices
 
-- Porter and Miller should see their own chores clearly.
+- Child A and Child B should see their own chores clearly.
 - Household members should be able to interact from the existing iPad mini, phones and a possible future kiosk.
 - Chore completion should be a single large tap, without sign-in friction.
 
@@ -22,7 +22,7 @@
 
 ## Chore data migration
 
-The current Kid Chores spreadsheet has 2025 and 2026 tabs and is a reference, not a live database. Analyze actual task names, day patterns, rotation anchors, exceptions and historical entries before finalizing the importer. Start with a dry-run preview and avoid modifying the original sheet.
+The current household chores spreadsheet has 2025 and 2026 tabs and is a reference, not a live database. Analyze actual task names, day patterns, rotation anchors, exceptions and historical entries before finalizing the importer. Start with a dry-run preview and avoid modifying the original sheet.
 
 ## Calendar integration (after chore MVP)
 
