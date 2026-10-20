@@ -7,7 +7,7 @@ describe('API integration', () => {
     try {
       const health = await app.inject({ method: 'GET', url: '/api/health' });
       expect(health.statusCode).toBe(200);
-      expect(health.json()).toEqual({ status: 'ok', service: 'family-hq' });
+      expect(health.json()).toEqual({ status: 'ok', service: 'family-hq', revision: 'development' });
       const unknown = await app.inject({ method: 'GET', url: '/api/chores' });
       expect(unknown.statusCode).toBe(404);
       const post = await app.inject({ method: 'POST', url: '/api/chores', payload: { completed: true } });
