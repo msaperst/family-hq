@@ -9,7 +9,7 @@ import { calendarSettings, GoogleCalendar, registerCalendarApi } from './calenda
 
 export function buildApp(options: { serveClient?: boolean; db?: DatabaseSync } = {}) {
   const app = Fastify({ logger: true });
-  app.get('/api/health', (): HealthResponse => ({ status: 'ok', service: 'family-hq' }));
+  app.get('/api/health', (): HealthResponse => ({ status: 'ok', service: 'family-hq', revision: process.env.FAMILY_HQ_REVISION || 'development' }));
   if (options.db) {
     registerChoreApi(app, options.db);
     const settings = calendarSettings(process.env);
