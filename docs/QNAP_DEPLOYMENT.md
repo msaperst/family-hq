@@ -25,6 +25,12 @@ Set `FAMILY_HQ_API_ALLOWED_CIDRS` in the NAS private production environment to a
 
 **Important:** the address checked is the actual TCP peer that Fastify sees, often the Docker bridge or same-host reverse proxy, **not necessarily the original browser**. The application intentionally does not accept an untrusted forwarded-client-IP header as proof of authorization. Inspect which address Family HQ receives from its configured proxy, and include only necessary trusted proxy/container ranges; a permissive bridge CIDR alone does not stop an internet visitor forwarded through that proxy. The HTTPS reverse proxy and firewall must separately prevent outside access. Test trusted devices and blocked network access before and after enabling this option. Never commit the private environment file.
 
+## Optional Host authority allowlist
+
+For DNS-rebinding defense in depth, configure `FAMILY_HQ_ALLOWED_HOSTS` as a comma-separated list of **exact request Host header values**, including the port if the proxy forwards one (e.g. `family.example.test,localhost:3080`; example domains only). Hostnames are compared case-insensitively. An invalid or empty setting fails at startup; an unrecognized Host is denied access to household API endpoints. If unset, the existing behavior is preserved for compatibility.
+
+Before enabling it on a live NAS, inspect the actual `Host` header forwarded by your HTTPS reverse proxy and any direct loopback use. Do **not** assume the browser's URL and upstream Host header match. Include only expected authorities; avoid wildcards and public aliases. Test the HTTPS dashboard, calendar, chores, and loopback health checks afterward. This setting does not authenticate users or replace the reverse proxy/firewall, and `/api/health` intentionally remains reachable for Docker health checks.
+
 ## Prerequisites
 
 - Docker Engine and Docker Compose with support for external volumes.
