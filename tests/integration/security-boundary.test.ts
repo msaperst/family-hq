@@ -4,6 +4,32 @@ import { trustedApiPeer } from '../../src/server/api.js';
 import { openDatabase } from '../../src/server/db.js';
 
 describe('household API security boundary', () => {
+  it('blocks cross-site browser reads and writes without trusting forwarded IPs', async () => {
+    const db = openDatabase(':memory:');
+    const app = buildApp({ db });
+    try {
+      for (const [method, url] of [
+        ['GET', '/api/children'], ['GET', '/api/parent/schedules'],
+        ['POST', '/api/parent/children'],
+      ]) {
+        const response = await app.inject({
+          method: method as 'GET' | 'POST', url, remoteAddress: '127.0.0.1',
+          headers: { host: 'localhost:3080', 'sec-fetch-site': 'cross-site',
+            'x-forwarded-for': '192.168.1.5' },
+          ...(method === 'POST' ? { payload: { name: 'Test' } } : {}),
+        });
+        expect(response.statusCode).toBe(403);
+      }
+      const sameOrigin = await app.inject({
+        method: 'GET', url: '/api/children',
+        headers: { 'sec-fetch-site': 'same-origin' },
+      });
+      expect(sameOrigin.statusCode).toBe(200);
+      const nonBrowser = await app.inject({ method: 'GET', url: '/api/children' });
+      expect(nonBrowser.statusCode).toBe(200);
+    } finally { await app.close(); db.close(); }
+  });
+
   it('restricts explicit peer CIDRs and supports IPv4-mapped Docker peers', () => {
     const allowed = trustedApiPeer('127.0.0.1/32,172.18.0.0/16,192.168.1.0/24');
     expect(allowed('127.0.0.1')).toBe(true);
