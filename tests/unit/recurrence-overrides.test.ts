@@ -5,10 +5,10 @@ import { generateOccurrences, previewOccurrences } from '../../src/server/recurr
 
 function fixture(options: { mode?: 'individual'|'either'|'each'; rotation?: 'none'|'daily'|'weekly'; frequency?: 'daily'|'weekly'; anchor?: string; children?: string[] } = {}) {
   const db = openDatabase(':memory:');
-  addChild(db,'porter','Porter'); addChild(db,'miller','Miller'); addChore(db,'task','Task');
+  addChild(db,'alex','Alex'); addChild(db,'sam','Sam'); addChore(db,'task','Task');
   db.prepare('INSERT INTO chore_schedules (id,chore_id,mode,frequency,anchor_date,rotation) VALUES (?,?,?,?,?,?)')
     .run('s','task',options.mode ?? 'individual',options.frequency ?? 'daily',options.anchor ?? '2026-10-12',options.rotation ?? 'none');
-  for (const [index,child] of (options.children ?? ['porter']).entries())
+  for (const [index,child] of (options.children ?? ['alex']).entries())
     db.prepare('INSERT INTO schedule_assignees (schedule_id,child_id,rotation_order) VALUES (?,?,?)').run('s',child,index);
   return db;
 }
@@ -29,26 +29,26 @@ describe('recurrence overrides and history', () => {
     } finally {db.close();}
   });
   it('reassigns a rotating occurrence without changing subsequent rotation', () => {
-    const db=fixture({rotation:'daily',children:['porter','miller']});
+    const db=fixture({rotation:'daily',children:['alex','sam']});
     try {
-      override(db,'2026-10-13','reassign',null,'porter');
+      override(db,'2026-10-13','reassign',null,'alex');
       const result=previewOccurrences(db,'s','2026-10-12','2026-10-15');
-      expect(result.map(x=>x.assignees)).toEqual([['porter'],['porter'],['porter'],['miller']]);
+      expect(result.map(x=>x.assignees)).toEqual([['alex'],['alex'],['alex'],['sam']]);
     } finally {db.close();}
   });
   it('does not mutate shared schedule assignees when overriding one day', () => {
-    const db=fixture({mode:'either',children:['porter','miller']});
+    const db=fixture({mode:'either',children:['alex','sam']});
     try {
-      override(db,'2026-10-13','reassign',null,'porter');
+      override(db,'2026-10-13','reassign',null,'alex');
       const result=previewOccurrences(db,'s','2026-10-12','2026-10-14');
-      expect(result.map(x=>x.assignees)).toEqual([['porter','miller'],['porter'],['porter','miller']]);
+      expect(result.map(x=>x.assignees)).toEqual([['alex','sam'],['alex'],['alex','sam']]);
     } finally {db.close();}
   });
   it('preserves completion when a later schedule change conflicts with an existing occurrence', () => {
     const db=fixture();
     try {
       generateOccurrences(db,'s','2026-10-12','2026-10-13');
-      setCompletion(db,'s:2026-10-12','porter',true);
+      setCompletion(db,'s:2026-10-12','alex',true);
       db.prepare("UPDATE chore_schedules SET mode='each' WHERE id='s'").run();
       expect(()=>generateOccurrences(db,'s','2026-10-12','2026-10-13')).toThrow('key conflict');
       expect(getCompletion(db,'s:2026-10-12')).toBe(true);
@@ -56,9 +56,9 @@ describe('recurrence overrides and history', () => {
     } finally {db.close();}
   });
   it('rotates by calendar day across a month boundary', () => {
-    const db=fixture({rotation:'daily',children:['porter','miller'],anchor:'2026-10-30'});
+    const db=fixture({rotation:'daily',children:['alex','sam'],anchor:'2026-10-30'});
     try {
-      expect(previewOccurrences(db,'s','2026-10-30','2026-11-02').map(x=>x.assignees[0])).toEqual(['porter','miller','porter','miller']);
+      expect(previewOccurrences(db,'s','2026-10-30','2026-11-02').map(x=>x.assignees[0])).toEqual(['alex','sam','alex','sam']);
     } finally {db.close();}
   });
   it('returns no occurrences for paused schedules', () => {
