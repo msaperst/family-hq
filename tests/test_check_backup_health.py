@@ -5,6 +5,8 @@ import sqlite3
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
+import subprocess
 
 ROOT = Path(__file__).resolve().parents[1] / "deployment"
 sys.path.insert(0, str(ROOT))
@@ -72,6 +74,40 @@ class BackupHealthTests(unittest.TestCase):
             destination.write_bytes(b"not sqlite")
             (root / "family-hq-20261020T000000000000Z.sqlite").symlink_to(destination)
             self.assertEqual(monitor.assess(root, now=NOW)["reason"], "insufficient_snapshots")
+
+
+    def test_qnap_initial_healthy_is_silent_then_failure_and_recovery(self):
+        with tempfile.TemporaryDirectory() as temp:
+            state = Path(temp) / "state.json"
+            healthy = {"status": "healthy"}
+            failed = {"status": "error", "reason": "stale_snapshot"}
+            with patch.object(monitor.subprocess, "run") as send:
+                self.assertEqual(monitor.notify(healthy, state, Path("/sbin/log_tool")), "baseline")
+                send.assert_not_called()
+                self.assertEqual(monitor.notify(failed, state, Path("/sbin/log_tool")), "notified")
+                self.assertEqual(monitor.notify(failed, state, Path("/sbin/log_tool")), "unchanged")
+                self.assertEqual(monitor.notify(healthy, state, Path("/sbin/log_tool")), "notified")
+                self.assertEqual(send.call_count, 2)
+                self.assertEqual(send.call_args.args[0][-1], "0")
+
+    def test_failed_event_keeps_old_state_for_retry(self):
+        with tempfile.TemporaryDirectory() as temp:
+            state = Path(temp) / "state.json"
+            with patch.object(monitor.subprocess, "run", side_effect=subprocess.CalledProcessError(1, "log_tool")):
+                with self.assertRaises(subprocess.CalledProcessError):
+                    monitor.notify({"status": "error", "reason": "invalid_snapshot"},
+                                   state, Path("/sbin/log_tool"))
+            self.assertFalse(state.exists())
+
+    def test_corrupt_state_fails_closed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            state = Path(temp) / "state.json"
+            state.write_text("not JSON")
+            with patch.object(monitor.subprocess, "run") as send:
+                with self.assertRaises(RuntimeError):
+                    monitor.notify({"status": "error", "reason": "stale_snapshot"},
+                                   state, Path("/sbin/log_tool"))
+                send.assert_not_called()
 
 
 if __name__ == "__main__":
