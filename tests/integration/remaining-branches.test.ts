@@ -17,7 +17,7 @@ describe('remaining server boundary conditions', () => {
             id: 'occurrence', name: 'Task', starts_on: '2026-10-15',
             due_on: '2026-10-15', mode: 'individual', child_id: 'missing', completed: 0,
           }];
-          if (sql.includes('FROM children')) return [{ id: 'porter', name: 'Porter' }];
+          if (sql.includes('FROM children')) return [{ id: 'alex', name: 'Alex' }];
           throw new Error('Unexpected query');
         }),
       })),

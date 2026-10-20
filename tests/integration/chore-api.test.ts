@@ -11,8 +11,8 @@ describe('chore API', () => {
   beforeEach(() => {
     db = openDatabase(':memory:');
     app = buildApp({ db });
-    addChild(db, 'porter', 'Porter');
-    addChild(db, 'miller', 'Miller');
+    addChild(db, 'alex', 'Alex');
+    addChild(db, 'sam', 'Sam');
     addChore(db, 'bed', 'Make bed');
   });
   afterEach(async () => { await app.close(); db.close(); });
@@ -26,34 +26,34 @@ describe('chore API', () => {
   }
   it('returns no empty columns, including shared', async () => {
     expect((await get()).columns).toEqual([]);
-    occurrence('a', 'individual', ['porter']);
+    occurrence('a', 'individual', ['alex']);
     const result = await get();
-    expect(result.columns.map(x => x.name)).toEqual(['Porter']);
+    expect(result.columns.map(x => x.name)).toEqual(['Alex']);
     expect(result.columns[0].chores[0].name).toBe('Make bed');
   });
   it('separates each-child obligations and deduplicates either-child obligations', async () => {
-    occurrence('each', 'each', ['porter', 'miller']);
-    occurrence('shared', 'either', ['porter', 'miller']);
+    occurrence('each', 'each', ['alex', 'sam']);
+    occurrence('shared', 'either', ['alex', 'sam']);
     const result = await get();
-    expect(result.columns.map(x => x.id)).toEqual(['miller', 'porter', 'either']);
+    expect(result.columns.map(x => x.id)).toEqual(['alex', 'sam', 'either']);
     expect(result.columns.map(x => x.chores.length)).toEqual([1, 1, 1]);
     expect(result.columns[2].chores[0].childId).toBeNull();
   });
   it('keeps incomplete overdue chores, but not completed past chores', async () => {
-    occurrence('old', 'individual', ['porter'], '2026-10-12');
+    occurrence('old', 'individual', ['alex'], '2026-10-12');
     expect((await get()).columns[0].chores[0].dueOn).toBe('2026-10-12');
-    await app.inject({ method: 'PUT', url: '/api/chores/old/completion', payload: { childId: 'porter', completed: true } });
+    await app.inject({ method: 'PUT', url: '/api/chores/old/completion', payload: { childId: 'alex', completed: true } });
     expect((await get()).columns).toEqual([]);
   });
   it('persists idempotent completion and supports unchecking', async () => {
-    occurrence('a', 'individual', ['porter']);
+    occurrence('a', 'individual', ['alex']);
     const url = '/api/chores/a/completion';
-    const first = await app.inject({ method: 'PUT', url, payload: { childId: 'porter', completed: true } });
+    const first = await app.inject({ method: 'PUT', url, payload: { childId: 'alex', completed: true } });
     expect(first.json()).toEqual({ changed: true, completed: true });
-    const again = await app.inject({ method: 'PUT', url, payload: { childId: 'porter', completed: true } });
+    const again = await app.inject({ method: 'PUT', url, payload: { childId: 'alex', completed: true } });
     expect(again.json()).toEqual({ changed: false, completed: true });
     expect((await get()).columns[0].chores[0].completed).toBe(true);
-    const undo = await app.inject({ method: 'PUT', url, payload: { childId: 'porter', completed: false } });
+    const undo = await app.inject({ method: 'PUT', url, payload: { childId: 'alex', completed: false } });
     expect(undo.json().changed).toBe(true);
     expect((await get()).columns[0].chores[0].completed).toBe(false);
     const events = db.prepare('SELECT id FROM completion_events').all();
@@ -63,7 +63,7 @@ describe('chore API', () => {
     for (const url of ['/api/chores?date=2026-02-30', '/api/chores?more=yes']) {
       expect((await app.inject({ method: 'GET', url })).statusCode).toBe(400);
     }
-    occurrence('a', 'individual', ['porter']);
+    occurrence('a', 'individual', ['alex']);
     for (const payload of [{ completed: 'true' }, { completed: true, childId: 7 }, { completed: true, childId: 'other' }]) {
       const result = await app.inject({ method: 'PUT', url: '/api/chores/a/completion', payload });
       expect([400, 404]).toContain(result.statusCode);
@@ -71,19 +71,19 @@ describe('chore API', () => {
     expect((await app.inject({ method: 'PUT', url: '/api/chores/missing/completion', payload: { completed: true } })).statusCode).toBe(404);
   });
   it('excludes deactivated children and lists only active children', async () => {
-    occurrence('a', 'individual', ['porter']);
-    db.prepare('UPDATE children SET active = 0 WHERE id = ?').run('porter');
+    occurrence('a', 'individual', ['alex']);
+    db.prepare('UPDATE children SET active = 0 WHERE id = ?').run('alex');
     expect((await get()).columns).toEqual([]);
     const response = await app.inject({ method: 'GET', url: '/api/children' });
-    expect(response.json().children).toEqual([{ id: 'miller', name: 'Miller' }]);
+    expect(response.json().children).toEqual([{ id: 'sam', name: 'Sam' }]);
   });
   it('rejects malformed completion bodies and missing targets', async () => {
-    occurrence('a', 'individual', ['porter']);
+    occurrence('a', 'individual', ['alex']);
     const url = '/api/chores/a/completion';
     for (const payload of [
       {}, { completed: null }, { completed: 'yes' },
       { completed: true, childId: [] }, { completed: true, performedBy: 3 },
-      { completed: true, performedBy: 'miller' },
+      { completed: true, performedBy: 'sam' },
     ]) {
       const result = await app.inject({ method: 'PUT', url, payload });
       expect([400, 404]).toContain(result.statusCode);
@@ -104,7 +104,7 @@ describe('chore API', () => {
   it('generates scheduled chores when requested', async () => {
     db.prepare(`INSERT INTO chore_schedules (id, chore_id, mode, frequency, anchor_date)
       VALUES ('schedule', 'bed', 'individual', 'daily', '2026-10-14')`).run();
-    db.prepare('INSERT INTO schedule_assignees (schedule_id, child_id) VALUES (?, ?)').run('schedule', 'porter');
+    db.prepare('INSERT INTO schedule_assignees (schedule_id, child_id) VALUES (?, ?)').run('schedule', 'alex');
     const result = await get();
     expect(result.columns[0].chores).toHaveLength(7);
     expect(result.columns[0].chores[0].dueOn).toBe('2026-10-14');

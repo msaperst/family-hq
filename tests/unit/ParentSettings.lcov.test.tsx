@@ -5,8 +5,8 @@ import { ParentSettings } from '../../src/client/ParentSettings';
 
 const schedule = { id: 'weekly', name: 'Clean bedroom', mode: 'individual', frequency: 'weekly',
   intervalCount: 1, weekdays: [], anchorDate: '2026-10-12', endDate: null,
-  rotation: 'none', paused: false, assignees: ['porter'] };
-const children = [{ id: 'porter', name: 'Porter' }, { id: 'miller', name: 'Miller' }];
+  rotation: 'none', paused: false, assignees: ['alex'] };
+const children = [{ id: 'alex', name: 'Alex' }, { id: 'sam', name: 'Sam' }];
 const occurrence = { key: 'weekly:2099-01-05', startsOn: '2099-01-05', dueOn: '2099-01-05',
   assignees: ['unknown-child'], skipped: false };
 const ok = (value: unknown, success = true) => ({ ok: success, json: async () => value } as Response);
@@ -65,7 +65,7 @@ describe('LCOV uncovered parent settings branches', () => {
     render(<ParentSettings />);
     await screen.findByText('Clean bedroom');
     fireEvent.change(screen.getByLabelText('Chore name'), { target: { value: 'Wash dishes' } });
-    fireEvent.click(screen.getByLabelText('Porter'));
+    fireEvent.click(screen.getByLabelText('Alex'));
     fireEvent.click(screen.getByRole('button', { name: 'Add chore' }));
     expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'Could not create chore');
   });
@@ -110,7 +110,7 @@ describe('LCOV uncovered parent settings branches', () => {
     render(<ParentSettings />);
     await screen.findByText('Clean bedroom');
     fireEvent.change(screen.getByLabelText('Chore name'), { target: { value: 'Wash dishes' } });
-    fireEvent.click(screen.getByLabelText('Porter'));
+    fireEvent.click(screen.getByLabelText('Alex'));
     fireEvent.click(screen.getByRole('button', { name: 'Add chore' }));
     expect(screen.getByRole('button', { name: 'Add chore' })).toHaveProperty('disabled', true);
     pending.resolve(ok({}));

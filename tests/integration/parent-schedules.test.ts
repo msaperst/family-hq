@@ -10,22 +10,22 @@ describe('parent schedule API', () => {
   let app: ReturnType<typeof buildApp>;
   beforeEach(() => {
     db = openDatabase(':memory:');
-    addChild(db, 'porter', 'Porter');
-    addChild(db, 'miller', 'Miller');
+    addChild(db, 'alex', 'Alex');
+    addChild(db, 'sam', 'Sam');
     app = buildApp({ db });
   });
   afterEach(async () => { await app.close(); db.close(); });
   const payload = {
     name: 'Take out recycling', mode: 'individual', frequency: 'weekly',
     intervalCount: 1, weekdays: [0], anchorDate: '2026-10-12',
-    endDate: null, rotation: 'none', assignees: ['porter'],
+    endDate: null, rotation: 'none', assignees: ['alex'],
   };
   it('creates and lists a recurring schedule with its assignees', async () => {
     const created = await app.inject({ method: 'POST', url: '/api/parent/schedules', payload });
     expect(created.statusCode).toBe(201);
     const listed = await app.inject({ method: 'GET', url: '/api/parent/schedules' });
     expect(listed.json().schedules).toEqual([expect.objectContaining({
-      id: created.json().id, name: payload.name, assignees: ['porter'], weekdays: [0], paused: false,
+      id: created.json().id, name: payload.name, assignees: ['alex'], weekdays: [0], paused: false,
     })]);
   });
   it('pauses and resumes without deleting the schedule', async () => {
@@ -38,8 +38,8 @@ describe('parent schedule API', () => {
   });
   it('rejects invalid dates, duplicate children, unknown children and invalid assignments', async () => {
     for (const change of [
-      { anchorDate: '2026-02-30' }, { assignees: ['porter', 'porter'] },
-      { assignees: ['missing'] }, { assignees: ['porter', 'miller'] },
+      { anchorDate: '2026-02-30' }, { assignees: ['alex', 'alex'] },
+      { assignees: ['missing'] }, { assignees: ['alex', 'sam'] },
       { weekdays: [7] }, { intervalCount: 0 },
     ]) {
       const response = await app.inject({ method: 'POST', url: '/api/parent/schedules', payload: { ...payload, ...change } });
@@ -54,22 +54,22 @@ describe('parent schedule API', () => {
     const choreId = created.json().choreId as string;
     db.prepare(`INSERT INTO chore_occurrences (id, occurrence_key, chore_id, schedule_id, starts_on, due_on, mode)
       VALUES ('historical', 'historical', ?, ?, '2026-10-12', '2026-10-12', 'individual')`).run(choreId, id);
-    db.prepare("INSERT INTO occurrence_assignees (occurrence_id, child_id) VALUES ('historical', 'porter')").run();
+    db.prepare("INSERT INTO occurrence_assignees (occurrence_id, child_id) VALUES ('historical', 'alex')").run();
     db.prepare(`INSERT INTO chore_completions (occurrence_id, child_id, completed, updated_at)
       VALUES ('historical', '', 1, '2026-10-12T12:00:00Z')`).run();
     const changed = await app.inject({ method: 'PUT', url: '/api/parent/schedules/' + id,
-      payload: { ...payload, name: 'Sort recycling', assignees: ['miller'], frequency: 'daily', weekdays: [] } });
+      payload: { ...payload, name: 'Sort recycling', assignees: ['sam'], frequency: 'daily', weekdays: [] } });
     expect(changed.statusCode).toBe(200);
     const schedules = (await app.inject({ method: 'GET', url: '/api/parent/schedules' })).json().schedules;
-    expect(schedules[0]).toMatchObject({ name: 'Sort recycling', assignees: ['miller'], frequency: 'daily' });
+    expect(schedules[0]).toMatchObject({ name: 'Sort recycling', assignees: ['sam'], frequency: 'daily' });
     expect(db.prepare("SELECT completed FROM chore_completions WHERE occurrence_id = 'historical'").get()).toMatchObject({ completed: 1 });
-    expect(db.prepare("SELECT child_id FROM occurrence_assignees WHERE occurrence_id = 'historical'").get()).toMatchObject({ child_id: 'porter' });
+    expect(db.prepare("SELECT child_id FROM occurrence_assignees WHERE occurrence_id = 'historical'").get()).toMatchObject({ child_id: 'alex' });
   });
 
   it('regenerates an untouched occurrence due today when individual changes to each child', async () => {
     const today = localToday();
     const input = { ...payload, name: 'Make bed', mode: 'individual', frequency: 'daily',
-      weekdays: [], anchorDate: today, assignees: ['porter'] };
+      weekdays: [], anchorDate: today, assignees: ['alex'] };
     const created = await app.inject({ method: 'POST', url: '/api/parent/schedules', payload: input });
     expect(created.statusCode).toBe(201);
     const { id } = created.json() as { id: string };
@@ -77,18 +77,18 @@ describe('parent schedule API', () => {
     const key = id + ':' + today;
     expect(db.prepare('SELECT mode FROM chore_occurrences WHERE occurrence_key = ?').get(key)).toMatchObject({ mode: 'individual' });
     const edited = await app.inject({ method: 'PUT', url: '/api/parent/schedules/' + id,
-      payload: { ...input, mode: 'each', assignees: ['porter', 'miller'] } });
+      payload: { ...input, mode: 'each', assignees: ['alex', 'sam'] } });
     expect(edited.statusCode).toBe(200);
     expect((await app.inject({ method: 'GET', url: '/api/chores?more=false' })).statusCode).toBe(200);
     expect(db.prepare('SELECT mode FROM chore_occurrences WHERE occurrence_key = ?').get(key)).toMatchObject({ mode: 'each' });
     expect(db.prepare('SELECT child_id FROM occurrence_assignees WHERE occurrence_id = ? ORDER BY child_id')
-      .all(key)).toEqual([{ child_id: 'miller' }, { child_id: 'porter' }]);
+      .all(key)).toEqual([{ child_id: 'alex' }, { child_id: 'sam' }]);
   });
 
   it('preserves completed occurrence history after a completion-mode edit', async () => {
     const today = localToday();
     const input = { ...payload, name: 'Make bed', mode: 'individual', frequency: 'daily',
-      weekdays: [], anchorDate: today, assignees: ['porter'] };
+      weekdays: [], anchorDate: today, assignees: ['alex'] };
     const created = await app.inject({ method: 'POST', url: '/api/parent/schedules', payload: input });
     const { id } = created.json() as { id: string };
     expect((await app.inject({ method: 'GET', url: '/api/chores?more=false' })).statusCode).toBe(200);
@@ -96,13 +96,13 @@ describe('parent schedule API', () => {
     db.prepare(`INSERT INTO chore_completions (occurrence_id, child_id, completed, updated_at)
       VALUES (?, '', 1, '2026-10-15T12:00:00Z')`).run(key);
     expect((await app.inject({ method: 'PUT', url: '/api/parent/schedules/' + id,
-      payload: { ...input, mode: 'each', assignees: ['porter', 'miller'] } })).statusCode).toBe(200);
+      payload: { ...input, mode: 'each', assignees: ['alex', 'sam'] } })).statusCode).toBe(200);
     expect((await app.inject({ method: 'GET', url: '/api/chores?more=false' })).statusCode).toBe(200);
     expect(db.prepare('SELECT mode FROM chore_occurrences WHERE occurrence_key = ?').get(key)).toMatchObject({ mode: 'individual' });
     expect(db.prepare('SELECT completed FROM chore_completions WHERE occurrence_id = ? AND child_id = ?')
       .get(key, '')).toMatchObject({ completed: 1 });
     expect(db.prepare('SELECT child_id FROM occurrence_assignees WHERE occurrence_id = ?').all(key))
-      .toEqual([{ child_id: 'porter' }]);
+      .toEqual([{ child_id: 'alex' }]);
   });
 
   it('rejects invalid edits and unknown schedule ids', async () => {
@@ -118,7 +118,7 @@ describe('parent schedule API', () => {
     const { id, choreId } = created.json() as { id: string; choreId: string };
     db.prepare(`INSERT INTO chore_occurrences (id, occurrence_key, chore_id, schedule_id, starts_on, due_on, mode)
       VALUES ('pause-occ', 'pause-occ', ?, ?, '2026-10-12', '2026-10-12', 'individual')`).run(choreId, id);
-    db.prepare("INSERT INTO occurrence_assignees (occurrence_id, child_id) VALUES ('pause-occ', 'porter')").run();
+    db.prepare("INSERT INTO occurrence_assignees (occurrence_id, child_id) VALUES ('pause-occ', 'alex')").run();
     const board = async () => (await app.inject({ method: 'GET', url: '/api/chores?date=2026-10-14' })).json();
     expect(JSON.stringify(await board())).toContain('pause-occ');
     await app.inject({ method: 'PATCH', url: '/api/parent/schedules/' + id, payload: { paused: true } });
@@ -134,12 +134,12 @@ describe('parent schedule API', () => {
     for (const [occurrence, day] of [['past', '2026-01-01'], ['future', next(1)], ['completed-future', next(2)]] as const) {
       db.prepare(`INSERT INTO chore_occurrences (id, occurrence_key, chore_id, schedule_id, starts_on, due_on, mode)
         VALUES (?, ?, ?, ?, ?, ?, 'individual')`).run(occurrence, occurrence, choreId, id, day, day);
-      db.prepare('INSERT INTO occurrence_assignees (occurrence_id, child_id) VALUES (?, ?)').run(occurrence, 'porter');
+      db.prepare('INSERT INTO occurrence_assignees (occurrence_id, child_id) VALUES (?, ?)').run(occurrence, 'alex');
     }
     db.prepare(`INSERT INTO chore_completions (occurrence_id, child_id, completed, updated_at)
       VALUES ('completed-future', '', 1, '2026-10-14T12:00:00Z')`).run();
     const response = await app.inject({ method: 'PUT', url: '/api/parent/schedules/' + id,
-      payload: { ...payload, assignees: ['miller'] } });
+      payload: { ...payload, assignees: ['sam'] } });
     expect(response.statusCode).toBe(200);
     const remaining = db.prepare('SELECT id FROM chore_occurrences ORDER BY id').all() as { id: string }[];
     expect(remaining.map(row => row.id)).toEqual(['completed-future', 'past']);
@@ -172,9 +172,9 @@ describe('parent schedule API', () => {
       action: 'move', newDate: '2026-12-08',
     });
     expect((await app.inject({ method: 'PUT', url: url + '/' + date,
-      payload: { action: 'reassign', childId: 'miller' } })).statusCode).toBe(200);
+      payload: { action: 'reassign', childId: 'sam' } })).statusCode).toBe(200);
     expect((await app.inject({ method: 'GET', url })).json().exceptions[0]).toMatchObject({
-      action: 'reassign', childId: 'miller',
+      action: 'reassign', childId: 'sam',
     });
     expect((await app.inject({ method: 'DELETE', url: url + '/' + date })).json()).toEqual({ removed: true });
     expect((await app.inject({ method: 'GET', url })).json().exceptions).toEqual([]);
@@ -185,8 +185,8 @@ describe('parent schedule API', () => {
     const url = '/api/parent/schedules/' + created.json().id + '/exceptions';
     for (const input of [{ action: 'unknown' }, { action: 'move' },
       { action: 'move', newDate: '2026-01-01' }, { action: 'reassign', childId: 'unknown' },
-      { action: 'skip', childId: 'porter' }, { action: 'move', newDate: '2026-12-08', childId: 'porter' },
-      { action: 'reassign', childId: 'porter', newDate: '2026-12-08' }]) {
+      { action: 'skip', childId: 'alex' }, { action: 'move', newDate: '2026-12-08', childId: 'alex' },
+      { action: 'reassign', childId: 'alex', newDate: '2026-12-08' }]) {
       expect((await app.inject({ method: 'PUT', url: url + '/2026-12-07', payload: input })).statusCode).toBe(400);
     }
     expect((await app.inject({ method: 'PUT', url: url + '/2026-01-01',
@@ -203,7 +203,7 @@ describe('parent schedule API', () => {
     db.prepare(`INSERT INTO chore_occurrences (id, occurrence_key, chore_id, schedule_id, starts_on, due_on, mode)
       VALUES ('protected', ?, ?, ?, '2026-12-07', '2026-12-07', 'individual')`)
       .run(id + ':2026-12-07', choreId, id);
-    db.prepare("INSERT INTO occurrence_assignees (occurrence_id, child_id) VALUES ('protected', 'porter')").run();
+    db.prepare("INSERT INTO occurrence_assignees (occurrence_id, child_id) VALUES ('protected', 'alex')").run();
     db.prepare(`INSERT INTO chore_completions (occurrence_id, child_id, completed, updated_at)
       VALUES ('protected', '', 1, '2026-10-14T12:00:00Z')`).run();
     const url = '/api/parent/schedules/' + id + '/exceptions/2026-12-07';
@@ -225,14 +225,14 @@ describe('parent schedule API', () => {
     const { id, choreId } = created.json() as { id: string; choreId: string };
     db.prepare(`INSERT INTO chore_occurrences (id, occurrence_key, chore_id, schedule_id, starts_on, due_on, mode)
       VALUES ('rollback-future', 'rollback-future', ?, ?, '2099-01-01', '2099-01-01', 'individual')`).run(choreId, id);
-    db.prepare("INSERT INTO occurrence_assignees (occurrence_id, child_id) VALUES ('rollback-future', 'porter')").run();
+    db.prepare("INSERT INTO occurrence_assignees (occurrence_id, child_id) VALUES ('rollback-future', 'alex')").run();
     db.exec(`CREATE TRIGGER reject_edit_assignment BEFORE INSERT ON schedule_assignees
       BEGIN SELECT RAISE(ABORT, 'simulated edit failure'); END`);
     const result = await app.inject({ method: 'PUT', url: '/api/parent/schedules/' + id,
-      payload: { ...payload, name: 'Changed name', assignees: ['miller'] } });
+      payload: { ...payload, name: 'Changed name', assignees: ['sam'] } });
     expect(result.statusCode).toBe(500);
     expect(db.prepare('SELECT name FROM chores WHERE id = ?').get(choreId)).toMatchObject({ name: payload.name });
-    expect(db.prepare('SELECT child_id FROM schedule_assignees WHERE schedule_id = ?').get(id)).toMatchObject({ child_id: 'porter' });
+    expect(db.prepare('SELECT child_id FROM schedule_assignees WHERE schedule_id = ?').get(id)).toMatchObject({ child_id: 'alex' });
     expect(db.prepare("SELECT id FROM chore_occurrences WHERE id = 'rollback-future'").get()).toBeDefined();
   });
   it('rolls back failed exception upserts and preserves the original override', async () => {
@@ -241,7 +241,7 @@ describe('parent schedule API', () => {
     expect((await app.inject({ method: 'PUT', url, payload: { action: 'skip' } })).statusCode).toBe(200);
     db.exec(`CREATE TRIGGER reject_exception_update BEFORE UPDATE ON occurrence_overrides
       BEGIN SELECT RAISE(ABORT, 'simulated override failure'); END`);
-    expect((await app.inject({ method: 'PUT', url, payload: { action: 'reassign', childId: 'miller' } })).statusCode).toBe(500);
+    expect((await app.inject({ method: 'PUT', url, payload: { action: 'reassign', childId: 'sam' } })).statusCode).toBe(500);
     const list = await app.inject({ method: 'GET', url: '/api/parent/schedules/' + created.json().id + '/exceptions' });
     expect(list.json().exceptions).toEqual([expect.objectContaining({ action: 'skip', originalDate: '2099-01-05' })]);
   });
@@ -265,7 +265,7 @@ describe('parent schedule API', () => {
       { ...payload, anchorDate: 'not-a-date' }, { ...payload, endDate: '2026-10-01' },
       { ...payload, endDate: '2026-02-30' }, { ...payload, rotation: 'invalid' },
       { ...payload, assignees: [] }, { ...payload, assignees: [''] },
-      { ...payload, assignees: [123] }, { ...payload, assignees: ['porter', 'porter'] },
+      { ...payload, assignees: [123] }, { ...payload, assignees: ['alex', 'alex'] },
       { ...payload, mode: 'either', rotation: 'weekly' },
       { ...payload, weekdays: [], intervalCount: 2 },
     ];
@@ -313,7 +313,7 @@ describe('parent schedule API', () => {
     const insert = () => {
       db.prepare(`INSERT INTO chore_occurrences (id, occurrence_key, chore_id, schedule_id, starts_on, due_on, mode)
         VALUES ('replaceable', ?, ?, ?, ?, ?, 'individual')`).run(id + ':' + date, choreId, id, date, date);
-      db.prepare("INSERT INTO occurrence_assignees (occurrence_id, child_id) VALUES ('replaceable', 'porter')").run();
+      db.prepare("INSERT INTO occurrence_assignees (occurrence_id, child_id) VALUES ('replaceable', 'alex')").run();
     };
     insert();
     const url = '/api/parent/schedules/' + id + '/exceptions/' + date;

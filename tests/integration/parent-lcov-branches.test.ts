@@ -8,11 +8,11 @@ describe('parent endpoint LCOV validation branches', () => {
   let db: DatabaseSync;
   let app: ReturnType<typeof buildApp>;
   const base = { name: 'Laundry', mode: 'individual', frequency: 'weekly', intervalCount: 1,
-    weekdays: [0], anchorDate: '2026-10-12', endDate: null, rotation: 'none', assignees: ['porter'] };
+    weekdays: [0], anchorDate: '2026-10-12', endDate: null, rotation: 'none', assignees: ['alex'] };
   beforeEach(() => {
     db = openDatabase(':memory:');
-    addChild(db, 'porter', 'Porter');
-    addChild(db, 'miller', 'Miller');
+    addChild(db, 'alex', 'Alex');
+    addChild(db, 'sam', 'Sam');
     app = buildApp({ db });
   });
   afterEach(async () => { await app.close(); db.close(); });
@@ -42,8 +42,8 @@ describe('parent endpoint LCOV validation branches', () => {
     ['empty assignees', { assignees: [] }],
     ['nonstring assignee', { assignees: [123] }],
     ['empty assignee id', { assignees: [''] }],
-    ['duplicate assignees', { assignees: ['porter', 'porter'] }],
-    ['multiple children without rotation', { assignees: ['porter', 'miller'] }],
+    ['duplicate assignees', { assignees: ['alex', 'alex'] }],
+    ['multiple children without rotation', { assignees: ['alex', 'sam'] }],
     ['rotation in shared mode', { mode: 'either', rotation: 'daily' }],
     ['flexible weekly with interval', { weekdays: [], intervalCount: 2 }],
   ])('rejects %s without persisting a schedule', async (_description, change) => {
@@ -56,9 +56,9 @@ describe('parent endpoint LCOV validation branches', () => {
     ['maximum interval', { intervalCount: 365 }],
     ['maximum name length', { name: 'x'.repeat(120) }],
     ['flexible weekly deadline', { weekdays: [] }],
-    ['rotating individual assignment', { rotation: 'daily', assignees: ['porter', 'miller'] }],
-    ['each child completes', { mode: 'each', assignees: ['porter', 'miller'] }],
-    ['either child completes', { mode: 'either', assignees: ['porter', 'miller'] }],
+    ['rotating individual assignment', { rotation: 'daily', assignees: ['alex', 'sam'] }],
+    ['each child completes', { mode: 'each', assignees: ['alex', 'sam'] }],
+    ['either child completes', { mode: 'either', assignees: ['alex', 'sam'] }],
     ['optional end date', { endDate: '2026-11-01' }],
   ])('accepts %s', async (_description, change) => {
     const result = await app.inject({ method: 'POST', url: '/api/parent/schedules',

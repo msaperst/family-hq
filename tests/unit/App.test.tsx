@@ -9,12 +9,12 @@ const fetchMock = vi.fn<typeof fetch>();
 const fixture: DashboardResponse = {
   today: '2026-10-14', through: '2026-10-20',
   columns: [
-    { id: 'porter', name: 'Porter', chores: [
-      { id: 'overdue', name: 'Laundry', startsOn: '2026-10-13', dueOn: '2026-10-13', mode: 'individual', childId: 'porter', completed: false },
-      { id: 'bed', name: 'Make bed', startsOn: '2026-10-14', dueOn: '2026-10-14', mode: 'individual', childId: 'porter', completed: false },
-      { id: 'tomorrow', name: 'Read', startsOn: '2026-10-15', dueOn: '2026-10-15', mode: 'individual', childId: 'porter', completed: false },
-      { id: 'friday', name: 'Dishes', startsOn: '2026-10-16', dueOn: '2026-10-16', mode: 'individual', childId: 'porter', completed: false },
-      { id: 'weekly', name: 'Clean room', startsOn: '2026-10-12', dueOn: '2026-10-18', mode: 'individual', childId: 'porter', completed: false },
+    { id: 'alex', name: 'Alex', chores: [
+      { id: 'overdue', name: 'Laundry', startsOn: '2026-10-13', dueOn: '2026-10-13', mode: 'individual', childId: 'alex', completed: false },
+      { id: 'bed', name: 'Make bed', startsOn: '2026-10-14', dueOn: '2026-10-14', mode: 'individual', childId: 'alex', completed: false },
+      { id: 'tomorrow', name: 'Read', startsOn: '2026-10-15', dueOn: '2026-10-15', mode: 'individual', childId: 'alex', completed: false },
+      { id: 'friday', name: 'Dishes', startsOn: '2026-10-16', dueOn: '2026-10-16', mode: 'individual', childId: 'alex', completed: false },
+      { id: 'weekly', name: 'Clean room', startsOn: '2026-10-12', dueOn: '2026-10-18', mode: 'individual', childId: 'alex', completed: false },
     ] },
     { id: 'either', name: 'Either child', chores: [
       { id: 'pets', name: 'Feed pets', startsOn: '2026-10-14', dueOn: '2026-10-14', mode: 'either', childId: null, completed: false },
@@ -42,13 +42,13 @@ describe('Family HQ dashboard', () => {
   });
   it('renders dynamic columns, overdue chores, tomorrow and flexible weekly chores', async () => {
     render(<App />);
-    const porter = await screen.findByRole('region', { name: 'Porter' });
-    expect(within(porter).getByText('Yesterday · Overdue')).toBeTruthy();
-    expect(within(porter).getByText('Tomorrow')).toBeTruthy();
-    expect(within(porter).getByText('Clean room')).toBeTruthy();
-    expect(within(porter).getByText('Dishes')).toBeTruthy();
+    const alex = await screen.findByRole('region', { name: 'Alex' });
+    expect(within(alex).getByText('Yesterday · Overdue')).toBeTruthy();
+    expect(within(alex).getByText('Tomorrow')).toBeTruthy();
+    expect(within(alex).getByText('Clean room')).toBeTruthy();
+    expect(within(alex).getByText('Dishes')).toBeTruthy();
     expect(screen.getByRole('region', { name: 'Either child' })).toBeTruthy();
-    expect(screen.queryByRole('region', { name: 'Miller' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Sam' })).toBeNull();
   });
   it('shows upcoming chores without requiring an expansion button', async () => {
     render(<App />);
@@ -61,7 +61,7 @@ describe('Family HQ dashboard', () => {
     await screen.findByText('Make bed');
     fireEvent.click(screen.getByRole('checkbox', { name: /Make bed/ }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/chores/bed/completion', expect.objectContaining({
-      method: 'PUT', body: JSON.stringify({ childId: 'porter', completed: true }),
+      method: 'PUT', body: JSON.stringify({ childId: 'alex', completed: true }),
     })));
   });
   it('uses a shared completion target for either-child chores', async () => {
@@ -119,7 +119,7 @@ describe('Family HQ dashboard', () => {
     render(<App />);
     await screen.findByText('Make bed');
     fireEvent.click(screen.getByRole('checkbox', { name: /Make bed/ }));
-    expect((await within(screen.getByRole('region', { name: 'Porter' })).findByRole('alert')).textContent).toMatch(/Could not save completion|Network lost/);
+    expect((await within(screen.getByRole('region', { name: 'Alex' })).findByRole('alert')).textContent).toMatch(/Could not save completion|Network lost/);
     expect(screen.getByRole('checkbox', { name: /Make bed/ })).toHaveProperty('checked', false);
   });
   it('reports completion network errors and restores the control', async () => {
@@ -130,7 +130,7 @@ describe('Family HQ dashboard', () => {
     render(<App />);
     await screen.findByText('Make bed');
     fireEvent.click(screen.getByRole('checkbox', { name: /Make bed/ }));
-    expect((await within(screen.getByRole('region', { name: 'Porter' })).findByRole('alert')).textContent).toMatch(/Could not save completion|Network lost/);
+    expect((await within(screen.getByRole('region', { name: 'Alex' })).findByRole('alert')).textContent).toMatch(/Could not save completion|Network lost/);
     await waitFor(() => expect(screen.getByRole('checkbox', { name: /Make bed/ })).toHaveProperty('disabled', false));
   });
   it('disables a chore while its completion request is pending', async () => {
@@ -171,9 +171,9 @@ describe('Family HQ dashboard', () => {
   });
   it('shows later chores directly without a hint or toggle', async () => {
     fetchMock.mockResolvedValue(response({ ...fixture, columns: [{
-        id: 'porter', name: 'Porter', chores: [{
+        id: 'alex', name: 'Alex', chores: [{
           id: 'future', name: 'Faraway task', startsOn: '2026-10-19', dueOn: '2026-10-19',
-          mode: 'individual', childId: 'porter', completed: false,
+          mode: 'individual', childId: 'alex', completed: false,
         }],
       }] }));
     render(<App />);
@@ -227,7 +227,7 @@ describe('Family HQ dashboard', () => {
     render(<App />);
     await screen.findByText('Make bed');
     fireEvent.click(screen.getByRole('checkbox', { name: /Make bed/ }));
-    expect((await within(screen.getByRole('region', { name: 'Porter' })).findByRole('alert')).textContent).toMatch(/Could not save completion|Network lost/);
+    expect((await within(screen.getByRole('region', { name: 'Alex' })).findByRole('alert')).textContent).toMatch(/Could not save completion|Network lost/);
   });
   it('keeps already loaded chores visible during a subsequent refresh error', async () => {
     let reads = 0;
@@ -239,7 +239,7 @@ describe('Family HQ dashboard', () => {
     render(<App />);
     await screen.findByText('Make bed');
     fireEvent(document, new Event('visibilitychange'));
-    expect((await within(screen.getByRole('region', { name: 'Porter' })).findByRole('alert')).textContent).toMatch(/Unable to load chores|Showing saved chores|Chores unavailable/);
+    expect((await within(screen.getByRole('region', { name: 'Alex' })).findByRole('alert')).textContent).toMatch(/Unable to load chores|Showing saved chores|Chores unavailable/);
     expect(screen.getByText('Make bed')).toBeTruthy();
   });
   it('aborts the outstanding request on unmount', () => {
@@ -342,7 +342,7 @@ describe('overdue undo branch coverage', () => {
     expect(screen.getByRole('checkbox', { name: /Laundry/ })).toHaveProperty('checked', true);
     fireEvent.click(screen.getByRole('checkbox', { name: /Laundry/ }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/chores/overdue/completion', expect.objectContaining({
-      body: JSON.stringify({ childId: 'porter', completed: false }),
+      body: JSON.stringify({ childId: 'alex', completed: false }),
     })));
   });
 
@@ -354,7 +354,7 @@ describe('overdue undo branch coverage', () => {
     render(<App />);
     const checkbox = await screen.findByRole('checkbox', { name: /Laundry/ });
     fireEvent.click(checkbox);
-    expect((await within(screen.getByRole('region', { name: 'Porter' })).findByRole('alert')).textContent).toMatch(/Could not save completion|Network lost/);
+    expect((await within(screen.getByRole('region', { name: 'Alex' })).findByRole('alert')).textContent).toMatch(/Could not save completion|Network lost/);
     expect(screen.getByRole('checkbox', { name: /Laundry/ })).toHaveProperty('checked', false);
   });
 });
@@ -362,8 +362,8 @@ describe('overdue undo branch coverage', () => {
 describe('weekly chore pagination and service recovery', () => {
   const later = (id: string, name: string, day: string): DashboardResponse => ({
     today: day, through: day, columns: [{
-      id: 'porter', name: 'Porter', chores: [{
-        id, name, startsOn: day, dueOn: day, mode: 'individual', childId: 'porter', completed: false,
+      id: 'alex', name: 'Alex', chores: [{
+        id, name, startsOn: day, dueOn: day, mode: 'individual', childId: 'alex', completed: false,
       }],
     }],
   });
@@ -372,8 +372,8 @@ describe('weekly chore pagination and service recovery', () => {
     render(<App />);
     const panel = await screen.findByRole('region', { name: 'Chores' });
     expect(within(panel).getByRole('alert').textContent).toBe('Unable to load chores');
-    expect(screen.queryByRole('region', { name: 'Porter' })).toBeNull();
-    expect(screen.queryByRole('region', { name: 'Miller' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Alex' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Sam' })).toBeNull();
   });
   it('appends the next week without dropping or duplicating existing chores', async () => {
     fetchMock.mockImplementation(async (url) => response(String(url).includes('window=true')
@@ -419,25 +419,25 @@ describe('weekly chore pagination and service recovery', () => {
     render(<App />);
     await screen.findByText('Make bed');
     fireEvent(document, new Event('visibilitychange'));
-    expect((await within(screen.getByRole('region', { name: 'Porter' })).findByRole('alert')).textContent).toContain('Showing saved chores');
+    expect((await within(screen.getByRole('region', { name: 'Alex' })).findByRole('alert')).textContent).toContain('Showing saved chores');
     expect(screen.getByText('Make bed')).toBeTruthy();
     fireEvent(document, new Event('visibilitychange'));
-    await waitFor(() => expect(within(screen.getByRole('region', { name: 'Porter' })).queryByRole('alert')).toBeNull());
+    await waitFor(() => expect(within(screen.getByRole('region', { name: 'Alex' })).queryByRole('alert')).toBeNull());
   });
 });
 
 describe('chore pagination edge cases', () => {
   const nextPage = (id: string, name: string): DashboardResponse => ({
     today: '2026-10-21', through: '2026-10-27',
-    columns: [{ id: 'porter', name: 'Porter', chores: [{
+    columns: [{ id: 'alex', name: 'Alex', chores: [{
       id, name, startsOn: '2026-10-22', dueOn: '2026-10-22',
-      mode: 'individual', childId: 'porter', completed: false,
+      mode: 'individual', childId: 'alex', completed: false,
     }] }],
   });
   it('loads the next week when a chore column is scrolled near the bottom', async () => {
     fetchMock.mockImplementation(async url => response(String(url).includes('window=true') ? nextPage('new', 'Scroll loaded') : fixture));
     render(<App />);
-    const column = await screen.findByRole('region', { name: 'Porter' });
+    const column = await screen.findByRole('region', { name: 'Alex' });
     const body = column.querySelector('.column-body') as HTMLDivElement;
     Object.defineProperties(body, {
       scrollHeight: { configurable: true, value: 1000 },
@@ -458,26 +458,26 @@ describe('chore pagination edge cases', () => {
       return response();
     });
     render(<App />);
-    const porter = await screen.findByRole('region', { name: 'Porter' });
-    fireEvent.click(within(porter).getByRole('button', { name: 'Load more chores' }));
-    const body = porter.querySelector('.column-body') as HTMLDivElement;
+    const alex = await screen.findByRole('region', { name: 'Alex' });
+    fireEvent.click(within(alex).getByRole('button', { name: 'Load more chores' }));
+    const body = alex.querySelector('.column-body') as HTMLDivElement;
     fireEvent.scroll(body);
     expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('window=true'))).toHaveLength(1);
     finish(response(nextPage('one', 'Pending finished')));
     expect(await screen.findByText('Pending finished')).toBeTruthy();
   });
   it('adds a new child column from a later week and preserves it during refresh', async () => {
-    const second = { ...nextPage('miller-task', 'Miller later'), columns: [{
-      id: 'miller', name: 'Miller', chores: [{ ...nextPage('miller-task', 'Miller later').columns[0].chores[0], childId: 'miller' }],
+    const second = { ...nextPage('sam-task', 'Sam later'), columns: [{
+      id: 'sam', name: 'Sam', chores: [{ ...nextPage('sam-task', 'Sam later').columns[0].chores[0], childId: 'sam' }],
     }] };
     fetchMock.mockImplementation(async url => response(String(url).includes('window=true') ? second : fixture));
     render(<App />);
     await screen.findByText('Make bed');
     fireEvent.click(screen.getAllByRole('button', { name: 'Load more chores' })[0]);
-    expect(await screen.findByText('Miller later')).toBeTruthy();
+    expect(await screen.findByText('Sam later')).toBeTruthy();
     fireEvent(document, new Event('visibilitychange'));
-    await waitFor(() => expect(screen.getByText('Miller later')).toBeTruthy());
-    expect(screen.getByRole('region', { name: 'Porter' })).toBeTruthy();
+    await waitFor(() => expect(screen.getByText('Sam later')).toBeTruthy());
+    expect(screen.getByRole('region', { name: 'Alex' })).toBeTruthy();
   });
   it('retains loaded future chores after refreshing the initial week', async () => {
     let refreshed = false;
@@ -507,7 +507,7 @@ describe('chore pagination edge cases', () => {
     const later = await screen.findByRole('checkbox', { name: /Later task/ });
     fireEvent.click(later);
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/chores/later-task/completion', expect.objectContaining({
-      method: 'PUT', body: JSON.stringify({ childId: 'porter', completed: true }),
+      method: 'PUT', body: JSON.stringify({ childId: 'alex', completed: true }),
     })));
   });
   it('stops offering further pages after thirteen weeks', async () => {

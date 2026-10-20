@@ -6,9 +6,9 @@ import type { DashboardResponse } from '../../src/shared/dashboard';
 
 const data: DashboardResponse = {
   today: '2026-10-14', through: '2026-10-20',
-  columns: [{ id: 'porter', name: 'Porter', chores: [{
+  columns: [{ id: 'alex', name: 'Alex', chores: [{
     id: 'bed', name: 'Make bed', startsOn: '2026-10-14', dueOn: '2026-10-14',
-    mode: 'individual', childId: 'porter', completed: false,
+    mode: 'individual', childId: 'alex', completed: false,
   }] }],
 };
 const ok = (): Response => ({ ok: true, json: async () => data }) as Response;
@@ -23,7 +23,7 @@ describe('dashboard cancellation and pending completion', () => {
     unmount();
     resolveRequest(ok());
     await Promise.resolve();
-    expect(screen.queryByRole('region', { name: 'Porter' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Alex' })).toBeNull();
   });
   it('blocks repeated completion while a save is pending', async () => {
     let resolveSave!: (response: Response) => void;

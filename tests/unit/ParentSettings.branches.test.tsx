@@ -3,10 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { ParentSettings } from '../../src/client/ParentSettings';
 
-const children = [{ id: 'porter', name: 'Porter' }, { id: 'miller', name: 'Miller' }];
+const children = [{ id: 'alex', name: 'Alex' }, { id: 'sam', name: 'Sam' }];
 const weekly = { id: 'weekly', name: 'Clean bedroom', mode: 'individual', frequency: 'weekly',
   intervalCount: 1, weekdays: [0, 6], anchorDate: '2026-10-12', endDate: null,
-  rotation: 'weekly', paused: false, assignees: ['porter', 'miller'] };
+  rotation: 'weekly', paused: false, assignees: ['alex', 'sam'] };
 const mock = vi.fn<typeof fetch>();
 const ok = (body: unknown, status = 200) => ({ ok: status < 400, status, json: async () => body } as Response);
 let schedules: typeof weekly[];
@@ -18,7 +18,7 @@ beforeEach(() => {
     const path = String(url);
     if (init?.method) return ok({});
     if (path.endsWith('/preview')) return ok({ occurrences: [
-      { key: 'weekly:2099-01-05', startsOn: '2099-01-05', dueOn: '2099-01-05', assignees: ['porter'], skipped: false },
+      { key: 'weekly:2099-01-05', startsOn: '2099-01-05', dueOn: '2099-01-05', assignees: ['alex'], skipped: false },
     ] });
     if (path.endsWith('/exceptions')) return ok({ exceptions: overrides });
     if (path.endsWith('/children')) return ok({ children });
@@ -40,12 +40,12 @@ describe('parent settings conditional behavior', () => {
     expect(screen.getByText(/Weekly · Mon, Sun/)).toBeTruthy();
     expect(screen.getByLabelText('Mon')).toHaveProperty('checked', true);
     fireEvent.change(screen.getByLabelText('Rotate assignment'), { target: { value: 'none' } });
-    expect(screen.getByLabelText('Porter')).toHaveProperty('checked', true);
-    expect(screen.getByLabelText('Miller')).toHaveProperty('checked', false);
+    expect(screen.getByLabelText('Alex')).toHaveProperty('checked', true);
+    expect(screen.getByLabelText('Sam')).toHaveProperty('checked', false);
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
     await waitFor(() => {
       const request = mock.mock.calls.find(([url, init]) => String(url).endsWith('/schedules/weekly') && init?.method === 'PUT');
-      expect(JSON.parse(request![1]!.body as string)).toMatchObject({ rotation: 'none', assignees: ['porter'], weekdays: [0, 6] });
+      expect(JSON.parse(request![1]!.body as string)).toMatchObject({ rotation: 'none', assignees: ['alex'], weekdays: [0, 6] });
     });
   });
   it('disables saving a selected-day weekly schedule with no selected weekdays', async () => {
@@ -108,7 +108,7 @@ describe('parent settings conditional behavior', () => {
   });
   it('renders an exception preview when its start and due dates match', async () => {
     await openEditor();
-    expect(screen.getByText(/2099-01-05 · Porter/)).toBeTruthy();
+    expect(screen.getByText(/2099-01-05 · Alex/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Exception' }));
     expect(screen.getByLabelText('Original scheduled date')).toHaveProperty('value', '2099-01-05');
   });
@@ -129,13 +129,13 @@ describe('parent settings conditional behavior', () => {
     await openEditor();
     fireEvent.change(screen.getByLabelText('Who completes it?'), { target: { value: 'either' } });
     expect(screen.queryByLabelText('Rotate assignment')).toBeNull();
-    expect(screen.getByLabelText('Porter')).toHaveProperty('checked', false);
-    expect(screen.getByLabelText('Miller')).toHaveProperty('checked', false);
-    fireEvent.click(screen.getByLabelText('Miller'));
+    expect(screen.getByLabelText('Alex')).toHaveProperty('checked', false);
+    expect(screen.getByLabelText('Sam')).toHaveProperty('checked', false);
+    fireEvent.click(screen.getByLabelText('Sam'));
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
     await waitFor(() => {
       const request = mock.mock.calls.find(([url, init]) => String(url).endsWith('/schedules/weekly') && init?.method === 'PUT');
-      expect(JSON.parse(request![1]!.body as string)).toMatchObject({ mode: 'either', rotation: 'none', assignees: ['miller'] });
+      expect(JSON.parse(request![1]!.body as string)).toMatchObject({ mode: 'either', rotation: 'none', assignees: ['sam'] });
     });
   });
   it('reports a failed create request and preserves entered values', async () => {
@@ -147,7 +147,7 @@ describe('parent settings conditional behavior', () => {
     render(<ParentSettings />);
     await screen.findByText('Clean bedroom');
     fireEvent.change(screen.getByLabelText('Chore name'), { target: { value: 'Wash dishes' } });
-    fireEvent.click(screen.getByLabelText('Porter'));
+    fireEvent.click(screen.getByLabelText('Alex'));
     fireEvent.click(screen.getByRole('button', { name: 'Add chore' }));
     expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'Could not create chore');
     expect(screen.getByDisplayValue('Wash dishes')).toBeTruthy();

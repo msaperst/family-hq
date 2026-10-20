@@ -8,32 +8,32 @@ import { join } from 'node:path';
 
 function fixture() {
   const db = openDatabase(':memory:');
-  addChild(db, 'porter', 'Porter');
-  addChild(db, 'miller', 'Miller');
+  addChild(db, 'alex', 'Alex');
+  addChild(db, 'sam', 'Sam');
   addChore(db, 'task', 'Task');
   return db;
 }
-const base = { id: 'today', key: 'task:today', choreId: 'task', startsOn: '2026-10-14', dueOn: '2026-10-14', mode: 'either' as const, assignees: ['porter', 'miller'] };
+const base = { id: 'today', key: 'task:today', choreId: 'task', startsOn: '2026-10-14', dueOn: '2026-10-14', mode: 'either' as const, assignees: ['alex', 'sam'] };
 describe('persistence failure and boundary paths', () => {
   it('rejects empty and duplicate assignees without inserting anything', () => {
     const db = fixture();
     try {
       expect(() => saveOccurrence(db, { ...base, assignees: [] })).toThrow('Distinct assignees');
-      expect(() => saveOccurrence(db, { ...base, assignees: ['porter', 'porter'] })).toThrow('Distinct assignees');
+      expect(() => saveOccurrence(db, { ...base, assignees: ['alex', 'alex'] })).toThrow('Distinct assignees');
       expect((db.prepare('SELECT count(*) AS n FROM chore_occurrences').get() as { n: number }).n).toBe(0);
     } finally { db.close(); }
   });
   it('rejects invalid individual assignments and reversed dates', () => {
     const db = fixture();
     try {
-      expect(() => saveOccurrence(db, { ...base, mode: 'individual', assignees: ['porter', 'miller'] })).toThrow('one assignee');
+      expect(() => saveOccurrence(db, { ...base, mode: 'individual', assignees: ['alex', 'sam'] })).toThrow('one assignee');
       expect(() => saveOccurrence(db, { ...base, startsOn: '2026-10-15' })).toThrow('Invalid occurrence date');
     } finally { db.close(); }
   });
   it('rolls back an occurrence when an assignee violates a foreign key', () => {
     const db = fixture();
     try {
-      expect(() => saveOccurrence(db, { ...base, assignees: ['porter', 'unknown'] })).toThrow();
+      expect(() => saveOccurrence(db, { ...base, assignees: ['alex', 'unknown'] })).toThrow();
       expect((db.prepare('SELECT count(*) AS n FROM chore_occurrences').get() as { n: number }).n).toBe(0);
       saveOccurrence(db, base);
       expect((db.prepare('SELECT count(*) AS n FROM occurrence_assignees').get() as { n: number }).n).toBe(2);
@@ -63,16 +63,16 @@ describe('persistence failure and boundary paths', () => {
       saveOccurrence(db, { ...base, mode: 'each' });
       expect(() => setCompletion(db, 'today', null, true)).toThrow('Invalid completion target');
       expect(() => setCompletion(db, 'today', 'unknown', true)).toThrow('Invalid completion target');
-      expect(() => setCompletion(db, 'today', 'porter', true, 'unknown')).toThrow('Performer');
-      expect(getCompletion(db, 'today', 'porter')).toBe(false);
+      expect(() => setCompletion(db, 'today', 'alex', true, 'unknown')).toThrow('Performer');
+      expect(getCompletion(db, 'today', 'alex')).toBe(false);
     } finally { db.close(); }
   });
   it('rejects a non-assignee for an individual chore', () => {
     const db = fixture();
     try {
-      saveOccurrence(db, { ...base, mode: 'individual', assignees: ['porter'] });
-      expect(() => setCompletion(db, 'today', 'miller', true)).toThrow('Invalid assignee');
-      expect(setCompletion(db, 'today', 'porter', true)).toBe(true);
+      saveOccurrence(db, { ...base, mode: 'individual', assignees: ['alex'] });
+      expect(() => setCompletion(db, 'today', 'sam', true)).toThrow('Invalid assignee');
+      expect(setCompletion(db, 'today', 'alex', true)).toBe(true);
     } finally { db.close(); }
   });
   it('returns no change for an initially unchecked task and supports reversal', () => {
