@@ -49,6 +49,17 @@ const groups = [
 ] as const;
 export function App() {
   const [data, setData] = useState<DashboardResponse | null>(null);
+  const [revision, setRevision] = useState<string | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch('/api/health', { signal: controller.signal })
+      .then(response => response.ok ? response.json() : null)
+      .then((health: { revision?: string } | null) => {
+        if (!controller.signal.aborted && health && typeof health.revision === 'string') setRevision(health.revision);
+      })
+      .catch(() => { /* Version is informational; never block household chores. */ });
+    return () => controller.abort();
+  }, []);
   const [needsSetup, setNeedsSetup] = useState(false);
   const [error, setError] = useState('');
   const [completionError, setCompletionError] = useState('');
@@ -184,5 +195,6 @@ export function App() {
       </section>; })}
     </div>}
     </div><CalendarPanel today={today} /></div>
+    {revision && <footer className="dashboard-version" title={`Deployed revision: ${revision}`}>Version: {revision === 'development' ? revision : revision.slice(0, 7)}</footer>}
   </main>;
 }
