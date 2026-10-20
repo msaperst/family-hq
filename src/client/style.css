@@ -230,3 +230,6 @@ h1 { font-size: clamp(1.8rem, 4vw, 2.5rem); margin: 0; }
 /* A setup hint is shown only for completely new households. */
 .chore-setup-link { text-align: center; padding: 0 16px 24px; color: #52617a; }
 .chore-setup-link a { color: #205f83; font-weight: 600; }
+
+/* Nonintrusive build identity for verifying the actually deployed image. */
+.dashboard-version { padding: 8px 16px 12px; font-size: .75rem; color: #63728a; text-align: right; }
