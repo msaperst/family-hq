@@ -51,43 +51,45 @@ export function allowedApiHosts(config: string | undefined): (host: string | und
   return host => typeof host === 'string' && allowlist.has(host.toLowerCase());
 }
 
+function mutationOriginError(origin: string | undefined, hostHeader: string | undefined): string | null {
+  if (!origin) return null;
+  try {
+    const parsed = new URL(origin);
+    // Vite's local dev proxy uses a separate port; preserve hostname comparison.
+    const hostname = hostHeader?.split(':')[0]?.toLowerCase();
+    return ['http:', 'https:'].includes(parsed.protocol) && parsed.hostname.toLowerCase() === hostname
+      ? null : 'Cross-origin mutation denied';
+  } catch {
+    return 'Invalid origin';
+  }
+}
+
+function apiAccessError(
+  url: string, method: string, ip: string,
+  headers: { host?: string; origin?: string; 'sec-fetch-site'?: string },
+  peerAllowed: (ip: string) => boolean,
+  hostAllowed: (host: string | undefined) => boolean,
+): string | null {
+  const protectedApi = url.startsWith('/api/') && url !== '/api/health';
+  if (protectedApi && !hostAllowed(headers.host)) return 'Unrecognized household host';
+  if (protectedApi && !peerAllowed(ip)) return 'Household LAN access only';
+  // Fetch Metadata protects even read-only household data from cross-site browsers.
+  if (protectedApi && headers['sec-fetch-site'] === 'cross-site') return 'Cross-site API access denied';
+  if (url.startsWith('/api/') && !['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+    return mutationOriginError(headers.origin, headers.host);
+  }
+  return null;
+}
+
 export function registerChoreApi(app: FastifyInstance, db: DatabaseSync): void {
   const peerAllowed = trustedApiPeer(process.env.FAMILY_HQ_API_ALLOWED_CIDRS);
   const hostAllowed = allowedApiHosts(process.env.FAMILY_HQ_ALLOWED_HOSTS);
   app.addHook('onRequest', (request, reply, done) => {
-    if (request.url.startsWith('/api/') && request.url !== '/api/health' &&
-        !hostAllowed(request.headers.host)) {
-      void reply.code(403).send({ error: 'Unrecognized household host' });
+    const error = apiAccessError(request.url, request.method, request.ip,
+      request.headers, peerAllowed, hostAllowed);
+    if (error) {
+      void reply.code(403).send({ error });
       return;
-    }
-    if (request.url.startsWith('/api/') && request.url !== '/api/health' && !peerAllowed(request.ip)) {
-      void reply.code(403).send({ error: 'Household LAN access only' });
-      return;
-    }
-    // Fetch Metadata protects even read-only household data from cross-site browser
-    // requests. Non-browser clients without this header continue to work on the LAN.
-    if (request.url.startsWith('/api/') && request.url !== '/api/health' &&
-        request.headers['sec-fetch-site'] === 'cross-site') {
-      void reply.code(403).send({ error: 'Cross-site API access denied' });
-      return;
-    }
-    if (request.url.startsWith('/api/') && !['GET', 'HEAD', 'OPTIONS'].includes(request.method)) {
-      // A browser must not be able to mutate the household API from another site.
-      // Compare hostnames rather than ports: Vite's local dev proxy uses a separate port.
-      const origin = request.headers.origin;
-      if (origin) {
-        try {
-          const parsed = new URL(origin);
-          const host = request.headers.host?.split(':')[0]?.toLowerCase();
-          if (!['http:', 'https:'].includes(parsed.protocol) || parsed.hostname.toLowerCase() !== host) {
-            void reply.code(403).send({ error: 'Cross-origin mutation denied' });
-            return;
-          }
-        } catch {
-          void reply.code(403).send({ error: 'Invalid origin' });
-          return;
-        }
-      }
     }
     done();
   });
