@@ -147,6 +147,21 @@ For unattended checks, add a **separate** daily cron task after the backup's exp
 
 **A failing cron exit code does not automatically notify anyone on QNAP.** Configure a monitored alert destination (such as NAS notifications, an existing monitoring system, or a private webhook) separately; do not treat log files as notifications. Avoid sending snapshot paths, database content, OAuth credentials, or other household data to an external alert service. The check is local-only and does not change existing S3/NAS backup jobs.
 
+### Optional QNAP notification-bell events
+
+On QTS 5.2.10, the NAS `/sbin/log_tool -a MESSAGE -t 2` command has been verified to create an Error event in QuLog Center **and** the QTS notification bell without any Notification Center delivery rule. To enable transition-based local alerts, use a persistent, private state file **outside the backup folder's snapshot files**:
+
+```sh
+python3 /path/to/deployment/check_backup_health.py \
+  --root /path/to/private/family-hq-backups \
+  --notify-qnap \
+  --state-file /path/to/private/family-hq-monitor/notification-state.json
+```
+
+Run this as an account allowed to execute `/sbin/log_tool` and write the state directory. On the first healthy check, only the baseline is saved; on the first unhealthy check, one QNAP Error event is emitted. Repeated checks with the same failure do not repeat alerts. A changed failure emits another Error event; recovery emits an Information event. State changes are atomic and locked between concurrent invocations. If event delivery fails, the previous state remains so the next check retries. **A monitoring cron entry does not install itself**; schedule this after your backup job and confirm it appears in the QNAP bell. Email and Qmanager push are intentionally not configured.
+
+The snapshot monitor still prints JSON suitable for local monitoring/Grafana ingestion. Its nonzero exit on an unhealthy backup or notification command failure should also be tracked in the job log. Do not put sensitive household data in event messages.
+
 ## Troubleshooting
 
 | Symptom | Check |
