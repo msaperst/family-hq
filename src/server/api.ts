@@ -46,6 +46,13 @@ export function registerChoreApi(app: FastifyInstance, db: DatabaseSync): void {
       void reply.code(403).send({ error: 'Household LAN access only' });
       return;
     }
+    // Fetch Metadata protects even read-only household data from cross-site browser
+    // requests. Non-browser clients without this header continue to work on the LAN.
+    if (request.url.startsWith('/api/') && request.url !== '/api/health' &&
+        request.headers['sec-fetch-site'] === 'cross-site') {
+      void reply.code(403).send({ error: 'Cross-site API access denied' });
+      return;
+    }
     if (request.url.startsWith('/api/') && !['GET', 'HEAD', 'OPTIONS'].includes(request.method)) {
       // A browser must not be able to mutate the household API from another site.
       // Compare hostnames rather than ports: Vite's local dev proxy uses a separate port.
