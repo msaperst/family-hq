@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { BlockList, isIP } from 'node:net';
 import type { DatabaseSync } from 'node:sqlite';
 import { children, dashboard, localToday } from './dashboard.js';
 import { setCompletion } from './chores.js';
@@ -19,9 +20,29 @@ export function isTrustedLanAddress(ip: string): boolean {
   }
   return /^f[cd][0-9a-f]{2}:/i.test(address);
 }
+export function trustedApiPeer(allowed: string | undefined): (ip: string) => boolean {
+  if (allowed === undefined) return isTrustedLanAddress;
+  const entries = allowed.split(',').map(value => value.trim());
+  if (entries.some(value => !value?.includes('/'))) throw new Error('Invalid API allowlist');
+  const list = new BlockList();
+  for (const value of entries) {
+    const [address, bits, ...extra] = value.split('/');
+    const family = isIP(address);
+    const prefix = Number(bits);
+    if (extra.length || !family || !/^\d+$/.test(bits) || prefix > (family === 4 ? 32 : 128))
+      throw new Error('Invalid API allowlist');
+    list.addSubnet(address, prefix, family === 4 ? 'ipv4' : 'ipv6');
+  }
+  return ip => {
+    const peer = ip.startsWith('::ffff:') ? ip.slice(7) : ip;
+    const family = isIP(peer);
+    return family !== 0 && list.check(peer, family === 4 ? 'ipv4' : 'ipv6');
+  };
+}
 export function registerChoreApi(app: FastifyInstance, db: DatabaseSync): void {
+  const peerAllowed = trustedApiPeer(process.env.FAMILY_HQ_API_ALLOWED_CIDRS);
   app.addHook('onRequest', (request, reply, done) => {
-    if (request.url.startsWith('/api/') && request.url !== '/api/health' && !isTrustedLanAddress(request.ip)) {
+    if (request.url.startsWith('/api/') && request.url !== '/api/health' && !peerAllowed(request.ip)) {
       void reply.code(403).send({ error: 'Household LAN access only' });
       return;
     }

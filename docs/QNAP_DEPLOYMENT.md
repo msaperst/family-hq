@@ -19,6 +19,12 @@ A reverse proxy running on **another host** cannot connect to the loopback-publi
 
 Application-level LAN checks are defense in depth. When requests arrive through a proxy, the application may see the proxy's private address instead of the browser's real IP. Do not rely on application source-IP checks alone to block external access. The current deployment is not an Alexa or remote-access endpoint; external integrations require an independently authenticated gateway.
 
+## Optional API peer-network restriction
+
+Set `FAMILY_HQ_API_ALLOWED_CIDRS` in the NAS private production environment to a comma-separated list of explicit CIDR ranges, for example `127.0.0.1/32,172.18.0.0/16` (illustrative only). Invalid CIDRs prevent application startup rather than silently allowing additional networks. When unset, the existing private-address LAN behavior remains unchanged for compatibility.
+
+**Important:** the address checked is the actual TCP peer that Fastify sees, often the Docker bridge or same-host reverse proxy, **not necessarily the original browser**. The application intentionally does not accept an untrusted forwarded-client-IP header as proof of authorization. Inspect which address Family HQ receives from its configured proxy, and include only necessary trusted proxy/container ranges; a permissive bridge CIDR alone does not stop an internet visitor forwarded through that proxy. The HTTPS reverse proxy and firewall must separately prevent outside access. Test trusted devices and blocked network access before and after enabling this option. Never commit the private environment file.
+
 ## Prerequisites
 
 - Docker Engine and Docker Compose with support for external volumes.
