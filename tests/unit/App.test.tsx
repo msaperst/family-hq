@@ -29,7 +29,12 @@ beforeEach(() => {
     if (options && 'method' in options && options.method === 'PUT') return { ok: true, json: async () => ({ changed: true, completed: true }) } as Response;
     return response();
   });
-  vi.stubGlobal('fetch', fetchMock);
+  // Version lookup must not consume chore API mock responses or polling call counts.
+  vi.stubGlobal('fetch', (url: RequestInfo | URL, options?: RequestInit) =>
+    String(url) === '/api/health'
+      ? Promise.resolve({ ok: true, json: async () => ({ status: 'ok', service: 'family-hq', revision: 'abcdef1234567890' }) } as Response)
+      : fetchMock(url, options));
+
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.resetAllMocks(); });
 
@@ -49,6 +54,11 @@ describe('Family HQ dashboard', () => {
     expect(within(alex).getByText('Dishes')).toBeTruthy();
     expect(screen.getByRole('region', { name: 'Either child' })).toBeTruthy();
     expect(screen.queryByRole('region', { name: 'Sam' })).toBeNull();
+  });
+  it('displays the deployed revision without interfering with chores', async () => {
+    render(<App />);
+    expect(await screen.findByText('Version: abcdef1')).toHaveProperty('title', 'Deployed revision: abcdef1234567890');
+    expect(await screen.findByText('Make bed')).toBeTruthy();
   });
   it('shows upcoming chores without requiring an expansion button', async () => {
     render(<App />);

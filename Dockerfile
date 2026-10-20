@@ -7,6 +7,8 @@ COPY src ./src
 RUN npm run build
 
 FROM node:22-alpine
+ARG FAMILY_HQ_REVISION=development
+ENV FAMILY_HQ_REVISION=$FAMILY_HQ_REVISION
 ENV NODE_ENV=production FAMILY_HQ_PORT=3080 HOST=0.0.0.0
 WORKDIR /app
 COPY package.json package-lock.json ./

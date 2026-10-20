@@ -7,7 +7,7 @@ describe('health endpoint', () => {
     try {
       const response = await app.inject({ method: 'GET', url: '/api/health' });
       expect(response.statusCode).toBe(200);
-      expect(response.json()).toEqual({ status: 'ok', service: 'family-hq' });
+      expect(response.json()).toEqual({ status: 'ok', service: 'family-hq', revision: 'development' });
     } finally {
       await app.close();
     }
