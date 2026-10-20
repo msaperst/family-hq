@@ -20,11 +20,11 @@ describe('API boundary and failure handling', () => {
     const db = openDatabase(':memory:');
     const app = buildApp({ db });
     try {
-      addChild(db, 'porter', 'Porter');
+      addChild(db, 'alex', 'Alex');
       addChore(db, 'bed', 'Make bed');
-      saveOccurrence(db, { id: 'one', key: 'one', choreId: 'bed', startsOn: '2026-10-14', dueOn: '2026-10-14', mode: 'individual', assignees: ['porter'] });
+      saveOccurrence(db, { id: 'one', key: 'one', choreId: 'bed', startsOn: '2026-10-14', dueOn: '2026-10-14', mode: 'individual', assignees: ['alex'] });
       db.close();
-      const result = await app.inject({ method: 'PUT', url: '/api/chores/one/completion', payload: { childId: 'porter', completed: true } });
+      const result = await app.inject({ method: 'PUT', url: '/api/chores/one/completion', payload: { childId: 'alex', completed: true } });
       expect(result.statusCode).toBe(500);
     } finally { await app.close(); if (db.isOpen) db.close(); }
   });
