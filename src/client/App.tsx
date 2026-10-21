@@ -1,4 +1,5 @@
 import { CalendarPanel } from './CalendarPanel';
+import { dailyProgress, finishesDay } from './dailyProgress';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DashboardChore, DashboardResponse } from '../shared/dashboard';
 
@@ -71,6 +72,12 @@ export function App() {
   const baseDayRef = useRef(phoenixDate());
   const MAX_WEEKS = 13;
   const [pending, setPending] = useState<string[]>([]);
+  const [celebration, setCelebration] = useState<{ columnId: string; stamp: number } | null>(null);
+  useEffect(() => {
+    if (!celebration) return;
+    const timeout = setTimeout(() => setCelebration(null), 2400);
+    return () => clearTimeout(timeout);
+  }, [celebration]);
   const [today, setToday] = useState(phoenixDate);
   const [undoEntries, setUndoEntries] = useState<UndoEntry[]>([]);
   useEffect(() => {
@@ -151,6 +158,13 @@ export function App() {
         }
       }
       await refresh();
+      if (!chore.completed && data) {
+        const columnId = chore.mode === 'either' ? 'either' : chore.childId;
+        const column = data.columns.find(candidate => candidate.id === columnId);
+        if (column && finishesDay(column.chores, today, chore)) {
+          setCelebration({ columnId: column.id, stamp: Date.now() });
+        }
+      }
     } catch (cause) {
       setCompletionError(cause instanceof Error ? cause.message : 'Could not save completion');
     } finally {
@@ -168,8 +182,9 @@ export function App() {
       {(data?.columns.length ? data.columns : [{ id: "chores", name: "Chores", chores: [] }]).map(column => {
         const retained = undoEntries.filter(entry => entry.columnId === column.id && entry.expiresAt > Date.now() && !column.chores.some(chore => chore.id === entry.chore.id));
         const choresForColumn = [...column.chores.map(chore => undoEntries.some(entry => entry.chore.id === chore.id) ? { ...chore, completed: true } : chore), ...retained.map(entry => entry.chore)];
+        const progress = dailyProgress(choresForColumn, today);
         return <section className="column" key={column.id} aria-label={column.name}>
-        <div className="column-heading"><h2>{column.name}</h2><p>{choresForColumn.filter(chore => chore.completed).length} completed</p></div>
+        <div className="column-heading"><h2>{column.name}</h2><p>{progress.total ? `${progress.completed} of ${progress.total} done today` : "No chores due today"}</p>{progress.allDone && <p className="daily-all-done" role="status">✓ All done for today!</p>}{celebration?.columnId === column.id && <div className="chore-confetti" key={celebration.stamp} aria-hidden="true">{Array.from({ length: 18 }, (_, i) => <i key={i} style={{ "--piece": i } as React.CSSProperties} />)}</div>}</div>
         <div className="column-body" onScroll={onChoreScroll}>
         {data?.columns.length === 0 && <><p className="chore-empty-state">No chores scheduled. Everyone's caught up!</p>{needsSetup && <p className="chore-setup-link">First time here? <a href="/settings">Set up your household</a> to add children and chores.</p>}</>}
         {error && <p role="alert" className="panel-error">{data ? "Showing saved chores — unable to refresh" : "Unable to load chores"}</p>}
