@@ -37,7 +37,9 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.clearAllMocks(); });
 
 function skip(name: string) {
   fireEvent.click(screen.getByRole('button', { name: 'Actions for ' + name }));
-  fireEvent.click(screen.getByRole('button', { name: 'Skip', exact: true }));
+  const row = screen.getByText(name).closest('.swipe-chore');
+  if (!row) throw new Error('Chore row not found');
+  fireEvent.click(row.querySelector('.swipe-action')!);
 }
 
 describe('dashboard skip handler', () => {
