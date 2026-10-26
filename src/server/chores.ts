@@ -90,3 +90,25 @@ export function getCompletion(db: DatabaseSync, occurrenceId: string, childId: s
   const result = db.prepare('SELECT completed FROM chore_completions WHERE occurrence_id = ? AND child_id = ?').get(occurrenceId, key) as { completed: number } | undefined;
   return result?.completed === 1;
 }
+
+export function setSkipped(db: DatabaseSync, occurrenceId: string, childId: string | null, skipped: boolean): boolean {
+  return transaction(db, () => {
+    const occurrence = db.prepare('SELECT mode, status FROM chore_occurrences WHERE id = ?').get(occurrenceId) as { mode: CompletionMode; status: string } | undefined;
+    if (occurrence?.status !== 'active') throw new Error('Active occurrence not found');
+    const assignees = new Set((db.prepare('SELECT child_id FROM occurrence_assignees WHERE occurrence_id = ?').all(occurrenceId) as { child_id: string }[]).map(row => row.child_id));
+    const key = occurrence.mode === 'each' ? childId : '';
+    if (key === null || (occurrence.mode === 'each' && !assignees.has(key)) || (occurrence.mode === 'individual' && childId !== null && !assignees.has(childId))) throw new Error('Invalid skip target');
+    const existing = db.prepare('SELECT skipped FROM chore_skips WHERE occurrence_id = ? AND child_id = ?').get(occurrenceId, key) as { skipped: number } | undefined;
+    if (Boolean(existing?.skipped) === skipped) return false;
+    if (skipped) {
+      const complete = db.prepare('SELECT completed FROM chore_completions WHERE occurrence_id = ? AND child_id = ?').get(occurrenceId, key) as { completed: number } | undefined;
+      if (complete?.completed) throw new Error('Completed chore cannot be skipped');
+    }
+    const now = new Date().toISOString();
+    db.prepare(`INSERT INTO chore_skips (occurrence_id, child_id, skipped, updated_at)
+      VALUES (?, ?, ?, ?) ON CONFLICT(occurrence_id, child_id)
+      DO UPDATE SET skipped=excluded.skipped, updated_at=excluded.updated_at`).run(occurrenceId, key, Number(skipped), now);
+    db.prepare('INSERT INTO chore_skip_events (occurrence_id, child_id, skipped, occurred_at) VALUES (?, ?, ?, ?)').run(occurrenceId, key, Number(skipped), now);
+    return true;
+  });
+}
