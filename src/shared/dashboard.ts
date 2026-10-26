@@ -7,6 +7,7 @@ export interface DashboardChore {
   mode: ChoreMode;
   childId: string | null;
   completed: boolean;
+  skipped?: boolean;
 }
 export interface DashboardColumn {
   id: string;
