@@ -44,10 +44,10 @@ export function HistoryDashboard() {
     <header className="history-header">
       <div><a href="/" className="history-back">← Family HQ</a><h1>Chore history</h1><p>See how the household has been doing, without treating skipped chores as completed.</p></div>
       <div className="history-controls">
-        <div className="history-period" role="group" aria-label="Date range">
+        <fieldset className="history-period"><legend className="history-period-label">Date range</legend>
           <button type="button" aria-pressed={days === 7} onClick={() => setDays(7)}>7 days</button>
           <button type="button" aria-pressed={days === 30} onClick={() => setDays(30)}>30 days</button>
-        </div>
+        </fieldset>
         <label>Show <select aria-label="Child" value={child} onChange={event => setChild(event.target.value)}>
           <option value="all">Everyone</option>
           {children.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
@@ -55,7 +55,7 @@ export function HistoryDashboard() {
       </div>
     </header>
     {error && <p role="alert" className="history-error">{error}</p>}
-    {!history && !error && <p role="status">Loading history…</p>}
+    {!history && !error && <output>Loading history…</output>}
     {history && <>
       <section className="history-metrics" aria-label="Chore summary">
         <div className="history-metric"><span>Completion rate</span><strong>{rate}%</strong><small>{summary.completed} of {summary.total} scheduled</small></div>
