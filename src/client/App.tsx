@@ -48,6 +48,48 @@ const groups = [
   { id: 'later', title: 'Due later' },
   { id: 'upcoming', title: 'Coming up' },
 ] as const;
+function SwipeChore({ chore, today, busy, onComplete, onSkip }: {
+  chore: DashboardChore; today: string; busy: boolean;
+  onComplete: (chore: DashboardChore) => void; onSkip: (chore: DashboardChore) => void;
+}) {
+  const [revealed, setRevealed] = useState(false);
+  const origin = useRef<{ x: number; y: number } | null>(null);
+  const gesture = useRef(false);
+  const skipLabel = chore.skipped ? 'Undo skip' : 'Skip';
+  return <div className={`swipe-chore${revealed ? ' revealed' : ''}${chore.skipped ? ' is-skipped' : ''}`}>
+    <button className="swipe-action" type="button" disabled={busy || chore.completed}
+      onClick={() => { setRevealed(false); onSkip(chore); }}>{skipLabel}</button>
+    <div className="swipe-face" onPointerDown={event => {
+      if ((event.target as HTMLElement).closest('input,button')) return;
+      origin.current = { x: event.clientX, y: event.clientY };
+      gesture.current = false;
+    }} onPointerUp={event => {
+      const start = origin.current;
+      origin.current = null;
+      if (!start) return;
+      const dx = event.clientX - start.x, dy = event.clientY - start.y;
+      if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+        setRevealed(dx < 0);
+        gesture.current = true;
+      }
+    }} onClick={event => {
+      if (gesture.current) { event.stopPropagation(); gesture.current = false; }
+    }}>
+      <label className="chore">
+        <input type="checkbox" aria-label={`${chore.name} · ${dueLabel(chore, today)}`}
+          checked={chore.completed} disabled={busy || chore.skipped}
+          onChange={() => onComplete(chore)} />
+        <span><span className={chore.completed ? 'chore-name completed' : chore.skipped ? 'chore-name skipped' : 'chore-name'}>{chore.name}</span>
+          <small>{chore.skipped ? `Skipped · ${dueLabel(chore, today)}` : dueLabel(chore, today)}</small></span>
+      </label>
+      <button type="button" className="chore-more" aria-label={`Actions for ${chore.name}`}
+        aria-expanded={revealed} onClick={() => setRevealed(value => !value)}>⋯</button>
+    </div>
+    {chore.skipped && !revealed && <button className="skip-undo-inline" type="button" disabled={busy}
+      onClick={() => onSkip(chore)}>Undo skip</button>}
+  </div>;
+}
+
 export function App() {
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [revision, setRevision] = useState<string | null>(null);
@@ -171,6 +213,34 @@ export function App() {
       setPending(previous => previous.filter(item => item !== key));
     }
   }
+  async function toggleSkip(chore: DashboardChore) {
+    const key = chore.id + ':' + (chore.childId ?? '');
+    if (pending.includes(key)) return;
+    setCompletionError('');
+    setPending(previous => [...previous, key]);
+    try {
+      const response = await fetch(`/api/chores/${encodeURIComponent(chore.id)}/skip`, {
+        method: 'PUT', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ childId: chore.childId, skipped: !chore.skipped }),
+      });
+      if (!response.ok) throw new Error('Could not save skip');
+      if (chore.dueOn < today) {
+        if (!chore.skipped) {
+          const columnId = chore.mode === 'either' ? 'either' : chore.childId!;
+          setUndoEntries(entries => [...entries.filter(entry => entry.chore.id !== chore.id), {
+            chore: { ...chore, skipped: true }, columnId, expiresAt: Date.now() + OVERDUE_UNDO_MS,
+          }]);
+        } else {
+          setUndoEntries(entries => entries.filter(entry => entry.chore.id !== chore.id));
+        }
+      }
+      await refresh();
+    } catch (cause) {
+      setCompletionError(cause instanceof Error ? cause.message : 'Could not save skip');
+    } finally {
+      setPending(previous => previous.filter(item => item !== key));
+    }
+  }
   return <main className="dashboard">
     <header className="dashboard-header dashboard-header-centered">
       <div><h1>Family HQ</h1><p>{new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', dateStyle: 'full' }).format(new Date(today + 'T00:00:00Z'))}</p></div>
@@ -181,7 +251,7 @@ export function App() {
     {(data || error) && <div className="columns" style={{ '--chore-column-count': data?.columns.length || 1 } as React.CSSProperties}>
       {(data?.columns.length ? data.columns : [{ id: "chores", name: "Chores", chores: [] }]).map(column => {
         const retained = undoEntries.filter(entry => entry.columnId === column.id && entry.expiresAt > Date.now() && !column.chores.some(chore => chore.id === entry.chore.id));
-        const choresForColumn = [...column.chores.map(chore => undoEntries.some(entry => entry.chore.id === chore.id) ? { ...chore, completed: true } : chore), ...retained.map(entry => entry.chore)];
+        const choresForColumn = [...column.chores.map(chore => undoEntries.find(entry => entry.chore.id === chore.id)?.chore ?? chore), ...retained.map(entry => entry.chore)];
         const progress = dailyProgress(choresForColumn, today);
         return <section className="column" key={column.id} aria-label={column.name}>
         <div className="column-heading"><h2>{column.name}</h2><p>{progress.total ? `${progress.completed} of ${progress.total} done today` : "No chores due today"}</p>{progress.allDone && <p className="daily-all-done" role="status">✓ All done for today!</p>}{celebration?.columnId === column.id && <div className="chore-confetti" key={celebration.stamp} aria-hidden="true">{Array.from({ length: 18 }, (_, i) => <i key={i} style={{ "--piece": i } as React.CSSProperties} />)}</div>}</div>
@@ -196,10 +266,7 @@ export function App() {
             <h3 className={group.id === 'overdue' ? 'overdue' : ''}>{group.title}</h3>
             {chores.map(chore => {
               const key = chore.id + ':' + (chore.childId ?? '');
-              return <label className="chore" key={key}>
-                <input type="checkbox" aria-label={`${chore.name} · ${dueLabel(chore, today)}`} checked={chore.completed} disabled={pending.includes(key)} onChange={() => { void toggle(chore); }} />
-                <span><span className={chore.completed ? 'chore-name completed' : 'chore-name'}>{chore.name}</span><small className={group.id === 'overdue' ? 'overdue' : ''}>{dueLabel(chore, today)}</small></span>
-              </label>;
+              return <SwipeChore key={key} chore={chore} today={today} busy={pending.includes(key)} onComplete={item => { void toggle(item); }} onSkip={item => { void toggleSkip(item); }} />;
             })}
           </section>;
         })}
