@@ -21,7 +21,7 @@ start() {
   done
 }
 start
-docker exec "$CONTAINER" node -e 'const {DatabaseSync}=require("node:sqlite");const d=new DatabaseSync("/app/data/family-hq.sqlite");if(d.prepare("SELECT COUNT(*) AS n FROM schema_migrations").get().n!==1)process.exit(1);d.prepare("INSERT INTO children (id,name) VALUES (?,?)").run("probe","Probe");d.close()'
+docker exec "$CONTAINER" node -e 'const {DatabaseSync}=require("node:sqlite");const d=new DatabaseSync("/app/data/family-hq.sqlite");if(d.prepare("SELECT COUNT(*) AS n FROM schema_migrations").get().n!==2)process.exit(1);d.prepare("INSERT INTO children (id,name) VALUES (?,?)").run("probe","Probe");d.close()'
 docker container rm -f "$CONTAINER" >/dev/null
 start
 docker exec "$CONTAINER" node -e 'const {DatabaseSync}=require("node:sqlite");const d=new DatabaseSync("/app/data/family-hq.sqlite");if(d.prepare("SELECT name FROM children WHERE id=?").get("probe")?.name!=="Probe")process.exit(1);if(d.prepare("PRAGMA integrity_check").get().integrity_check!=="ok")process.exit(2);d.close()'
