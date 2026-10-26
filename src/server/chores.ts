@@ -71,6 +71,8 @@ export function setCompletion(db: DatabaseSync, occurrenceId: string, childId: s
     if (performedBy !== null && !assignees.has(performedBy)) throw new Error('Performer must be an assignee');
     if (occurrence.mode === 'individual' && childId !== null && !assignees.has(childId)) throw new Error('Invalid assignee');
     const previous = db.prepare('SELECT completed FROM chore_completions WHERE occurrence_id = ? AND child_id = ?').get(occurrenceId, key) as { completed: number } | undefined;
+    const skip = db.prepare('SELECT skipped FROM chore_skips WHERE occurrence_id = ? AND child_id = ?').get(occurrenceId, key) as { skipped: number } | undefined;
+    if (completed && skip?.skipped) throw new Error('Skipped chore must be unskipped first');
     if (previous?.completed === Number(completed) || (!previous?.completed && !completed)) return false;
     const now = new Date().toISOString();
     db.prepare(`INSERT INTO chore_completions (occurrence_id, child_id, completed, performed_by, updated_at)
