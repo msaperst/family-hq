@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { BlockList, isIP } from 'node:net';
 import type { DatabaseSync } from 'node:sqlite';
 import { children, dashboard, localToday } from './dashboard.js';
+import { choreHistory } from './history.js';
 import { setCompletion, setSkipped } from './chores.js';
 import { registerParentApi } from './parent.js';
 
@@ -95,6 +96,11 @@ export function registerChoreApi(app: FastifyInstance, db: DatabaseSync): void {
   });
   registerParentApi(app, db);
   app.get('/api/children', () => ({ children: children(db) }));
+  app.get<{ Querystring: { days?: string } }>('/api/history', (request, reply) => {
+    const days = request.query.days ?? '7';
+    if (days !== '7' && days !== '30') return reply.code(400).send({ error: 'Days must be 7 or 30' });
+    return choreHistory(db, Number(days) as 7 | 30);
+  });
   app.get<{ Querystring: { date?: string; more?: string; window?: string } }>('/api/chores', (request, reply) => {
     const { date, more, window } = request.query;
     if ((date !== undefined && !validDate(date)) || (more !== undefined && more !== 'true' && more !== 'false') || (window !== undefined && window !== 'true')) {

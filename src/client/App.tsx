@@ -252,6 +252,7 @@ export function App() {
     <header className="dashboard-header dashboard-header-centered">
       <div><h1>Family HQ</h1><p>{new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', dateStyle: 'full' }).format(new Date(today + 'T00:00:00Z'))}</p></div>
 
+      <a href="/history" className="history-nav">Chore history ↗</a>
     </header>
     <div className="dashboard-content"><div className="chores-panel">
     {!data && !error && <p>Loading chores…</p>}
