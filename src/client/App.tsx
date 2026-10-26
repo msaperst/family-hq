@@ -48,7 +48,7 @@ const groups = [
   { id: 'later', title: 'Due later' },
   { id: 'upcoming', title: 'Coming up' },
 ] as const;
-function SwipeChore({ chore, today, busy, onComplete, onSkip }: {
+export function SwipeChore({ chore, today, busy, onComplete, onSkip }: {
   chore: DashboardChore; today: string; busy: boolean;
   onComplete: (chore: DashboardChore) => void; onSkip: (chore: DashboardChore) => void;
 }) {
