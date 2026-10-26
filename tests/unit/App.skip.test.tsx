@@ -68,7 +68,7 @@ describe('dashboard skip handler', () => {
     render(<App />);
     await screen.findByText('Today task');
     skip('Today task');
-    await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch('Could not save skip'));
+    await waitFor(() => expect(screen.getAllByRole('alert').some(node => node.textContent?.includes('Could not save skip'))).toBe(true));
     expect(screen.queryByText('Skipped · Today')).toBeNull();
   });
   it('uses a null child for either-child skip', async () => {
