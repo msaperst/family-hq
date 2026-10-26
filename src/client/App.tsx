@@ -48,14 +48,21 @@ const groups = [
   { id: 'later', title: 'Due later' },
   { id: 'upcoming', title: 'Coming up' },
 ] as const;
-export function SwipeChore({ chore, today, busy, onComplete, onSkip }: {
-  chore: DashboardChore; today: string; busy: boolean;
-  onComplete: (chore: DashboardChore) => void; onSkip: (chore: DashboardChore) => void;
-}) {
+interface SwipeChoreProps {
+  readonly chore: DashboardChore;
+  readonly today: string;
+  readonly busy: boolean;
+  readonly onComplete: (chore: DashboardChore) => void;
+  readonly onSkip: (chore: DashboardChore) => void;
+}
+export function SwipeChore({ chore, today, busy, onComplete, onSkip }: Readonly<SwipeChoreProps>) {
   const [revealed, setRevealed] = useState(false);
   const origin = useRef<{ x: number; y: number } | null>(null);
   const gesture = useRef(false);
   const skipLabel = chore.skipped ? 'Undo skip' : 'Skip';
+  let choreNameClass = 'chore-name';
+  if (chore.completed) choreNameClass += ' completed';
+  else if (chore.skipped) choreNameClass += ' skipped';
   return <div className={`swipe-chore${revealed ? ' revealed' : ''}${chore.skipped ? ' is-skipped' : ''}`}>
     {!chore.skipped && <button className="swipe-action" type="button" disabled={busy || chore.completed}
       onClick={() => { setRevealed(false); onSkip(chore); }}>{skipLabel}</button>}
@@ -79,7 +86,7 @@ export function SwipeChore({ chore, today, busy, onComplete, onSkip }: {
         <input type="checkbox" aria-label={`${chore.name} · ${dueLabel(chore, today)}`}
           checked={chore.completed} disabled={busy || chore.skipped}
           onChange={() => onComplete(chore)} />
-        <span><span className={chore.completed ? 'chore-name completed' : chore.skipped ? 'chore-name skipped' : 'chore-name'}>{chore.name}</span>
+        <span><span className={choreNameClass}>{chore.name}</span>
           <small>{chore.skipped ? `Skipped · ${dueLabel(chore, today)}` : dueLabel(chore, today)}</small></span>
       </label>
       <button type="button" className="chore-more" aria-label={`Actions for ${chore.name}`}
