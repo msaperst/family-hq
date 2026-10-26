@@ -33,7 +33,7 @@ describe('chore history reporting', () => {
     expect(result.entries.filter(e => e.id === 'shared')).toHaveLength(1);
   });
   it('does not include occurrences outside the requested range', () => {
-    add('older', '2026-10-01', 'individual');
+    add('older', '2026-09-01', 'individual');
     add('current', '2026-10-26', 'individual');
     expect(choreHistory(db, 7, '2026-10-26').entries.map(e => e.id)).toEqual(['current']);
     expect(choreHistory(db, 30, '2026-10-26').entries).toHaveLength(1);
