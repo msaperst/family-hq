@@ -14,7 +14,7 @@ export function localToday(now = new Date()): string {
 export function children(db: DatabaseSync): ChildResponse[] {
   return db.prepare('SELECT id, name FROM children WHERE active = 1 ORDER BY name').all() as unknown as ChildResponse[];
 }
-interface OccurrenceRow { id: string; name: string; starts_on: string; due_on: string; mode: DashboardChore['mode']; child_id: string; completed: number }
+interface OccurrenceRow { id: string; name: string; starts_on: string; due_on: string; mode: DashboardChore['mode']; child_id: string; completed: number; skipped: number }
 function assignOccurrences(rows: OccurrenceRow[], columns: Map<string, DashboardColumn>, shared: DashboardColumn): void {
   const seenShared = new Set<string>();
   for (const row of rows) {
@@ -27,7 +27,7 @@ function assignOccurrences(rows: OccurrenceRow[], columns: Map<string, Dashboard
     if (!target) throw new Error('Active child missing from dashboard columns: ' + row.child_id);
     target.chores.push({
       id: row.id, name: row.name, startsOn: row.starts_on, dueOn: row.due_on,
-      mode: row.mode, childId: isShared ? null : row.child_id, completed: row.completed === 1,
+      mode: row.mode, childId: isShared ? null : row.child_id, completed: row.completed === 1, skipped: row.skipped === 1,
     });
   }
 }
@@ -40,17 +40,19 @@ export function dashboard(db: DatabaseSync, today: string, extraDays = 0, includ
   for (const schedule of schedules) generateOccurrences(db, schedule.id, today, through);
   const rows = db.prepare(`
     SELECT o.id, c.name, o.starts_on, o.due_on, o.mode, a.child_id,
-           COALESCE(co.completed, 0) AS completed
+           COALESCE(co.completed, 0) AS completed, COALESCE(sk.skipped, 0) AS skipped
     FROM chore_occurrences o
     JOIN chores c ON c.id = o.chore_id
     JOIN occurrence_assignees a ON a.occurrence_id = o.id
     LEFT JOIN chore_completions co ON co.occurrence_id = o.id
       AND co.child_id = CASE WHEN o.mode = 'each' THEN a.child_id ELSE '' END
+    LEFT JOIN chore_skips sk ON sk.occurrence_id = o.id
+      AND sk.child_id = CASE WHEN o.mode = 'each' THEN a.child_id ELSE '' END
     JOIN children child ON child.id = a.child_id
     LEFT JOIN chore_schedules schedule ON schedule.id = o.schedule_id
     WHERE o.status = 'active' AND c.archived = 0 AND child.active = 1
       AND (schedule.id IS NULL OR schedule.paused = 0)
-      AND o.starts_on <= ? AND (o.due_on >= ? OR (? = 1 AND COALESCE(co.completed, 0) = 0))
+      AND o.starts_on <= ? AND (o.due_on >= ? OR (? = 1 AND COALESCE(co.completed, 0) = 0 AND COALESCE(sk.skipped, 0) = 0))
     ORDER BY o.due_on, c.name, o.id
   `).all(through, today, includeOverdue ? 1 : 0) as unknown as OccurrenceRow[];
   const active = children(db);
