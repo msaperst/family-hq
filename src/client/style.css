@@ -257,3 +257,17 @@ h1 { font-size: clamp(1.8rem, 4vw, 2.5rem); margin: 0; }
 @media (prefers-reduced-motion: reduce) {
   .chore-confetti { display: none; }
 }
+
+
+/* Swipe left (touch or mouse drag) to reveal a deliberate skip action. */
+.swipe-chore { position: relative; overflow: hidden; border-radius: 12px; margin: 8px 0; background: #dbe5ed; }
+.swipe-chore .chore { margin: 0; flex: 1; min-width: 0; }
+.swipe-face { position: relative; display: flex; align-items: center; background: white; transition: transform .18s ease; touch-action: pan-y; }
+.swipe-chore.revealed .swipe-face { transform: translateX(-90px); }
+.swipe-action { position: absolute; right: 0; top: 0; bottom: 0; width: 90px; border: 0; background: #a7433c; color: white; font: inherit; font-weight: 700; cursor: pointer; }
+.swipe-chore.is-skipped .swipe-action { background: #366b70; }
+.swipe-chore .chore-more { border: 0; background: transparent; min-width: 40px; min-height: 48px; cursor: pointer; color: #59677b; font-size: 1.5rem; }
+.swipe-chore .chore-name.skipped { text-decoration: line-through; color: #657084; }
+.swipe-chore.is-skipped .swipe-face { background: #e5ecf0; }
+.skip-undo-inline { border: 0; background: transparent; font: inherit; font-size: .8rem; text-decoration: underline; color: #245c7f; cursor: pointer; padding: 4px 12px 10px; }
+@media (prefers-reduced-motion: reduce) { .swipe-face { transition: none; } }

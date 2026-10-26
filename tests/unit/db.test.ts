@@ -22,7 +22,7 @@ describe('SQLite persistence', () => {
     db.close();
     const reopened = openDatabase(path);
     expect((reopened.prepare('SELECT COUNT(*) AS count FROM children').get() as { count: number }).count).toBe(2);
-    expect((reopened.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get() as { count: number }).count).toBe(1);
+    expect((reopened.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get() as { count: number }).count).toBe(2);
     reopened.close();
   });
   it('shares either-child completion, supports uncheck and preserves history', () => {
