@@ -133,6 +133,9 @@ export function registerChoreApi(app: FastifyInstance, db: DatabaseSync): void {
         const changed = setCompletion(db, request.params.id, body.childId ?? null, body.completed, body.performedBy ?? null);
         return { changed, completed: body.completed };
       } catch (error) {
+        if (error instanceof Error && /Skipped chore must/.test(error.message)) {
+          return reply.code(409).send({ error: error.message });
+        }
         if (error instanceof Error && /not found|Invalid completion target|Invalid assignee|Performer must/.test(error.message)) {
           return reply.code(404).send({ error: 'Occurrence or assignee not found' });
         }
