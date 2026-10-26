@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { BlockList, isIP } from 'node:net';
 import type { DatabaseSync } from 'node:sqlite';
 import { children, dashboard, localToday } from './dashboard.js';
-import { setCompletion } from './chores.js';
+import { setCompletion, setSkipped } from './chores.js';
 import { registerParentApi } from './parent.js';
 
 function validDate(value: unknown): value is string {
@@ -103,6 +103,24 @@ export function registerChoreApi(app: FastifyInstance, db: DatabaseSync): void {
     const extraDays = window !== 'true' && more === 'true' ? 21 : 0;
     return dashboard(db, date ?? localToday(), extraDays, window !== 'true');
   });
+  app.put<{ Params: { id: string }; Body: { childId?: string | null; skipped?: boolean } }>(
+    '/api/chores/:id/skip', (request, reply) => {
+      const body = request.body;
+      if (!body || typeof body.skipped !== 'boolean' ||
+        (body.childId !== undefined && body.childId !== null && typeof body.childId !== 'string'))
+        return reply.code(400).send({ error: 'Invalid skip payload' });
+      try {
+        const changed = setSkipped(db, request.params.id, body.childId ?? null, body.skipped);
+        return { changed, skipped: body.skipped };
+      } catch (error) {
+        if (error instanceof Error && /not found|Invalid skip target/.test(error.message))
+          return reply.code(404).send({ error: 'Occurrence or assignee not found' });
+        if (error instanceof Error && /Completed chore/.test(error.message))
+          return reply.code(409).send({ error: error.message });
+        throw error;
+      }
+    },
+  );
   app.put<{ Params: { id: string }; Body: { childId?: string | null; completed?: boolean; performedBy?: string | null } }>(
     '/api/chores/:id/completion', (request, reply) => {
       const body = request.body;
