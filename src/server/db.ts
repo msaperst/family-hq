@@ -78,7 +78,21 @@ const migrations = [
   );
   CREATE INDEX idx_occurrences_dates ON chore_occurrences(starts_on, due_on);
   CREATE INDEX idx_completion_events_occurrence ON completion_events(occurrence_id);
-  CREATE INDEX idx_overrides_schedule ON occurrence_overrides(schedule_id, original_date);`
+  CREATE INDEX idx_overrides_schedule ON occurrence_overrides(schedule_id, original_date);`,
+  `CREATE TABLE chore_skips (
+    occurrence_id TEXT NOT NULL REFERENCES chore_occurrences(id) ON DELETE CASCADE,
+    child_id TEXT NOT NULL DEFAULT '',
+    skipped INTEGER NOT NULL CHECK(skipped IN (0,1)),
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY(occurrence_id, child_id)
+  );
+  CREATE TABLE chore_skip_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    occurrence_id TEXT NOT NULL REFERENCES chore_occurrences(id) ON DELETE CASCADE,
+    child_id TEXT NOT NULL DEFAULT '',
+    skipped INTEGER NOT NULL CHECK(skipped IN (0,1)),
+    occurred_at TEXT NOT NULL
+  );`
 ];
 
 export function assertDatabaseIntegrity(result: { integrity_check: string }): void {
