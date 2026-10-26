@@ -72,8 +72,8 @@ function SwipeChore({ chore, today, busy, onComplete, onSkip }: {
         setRevealed(dx < 0);
         gesture.current = true;
       }
-    }} onClick={event => {
-      if (gesture.current) { event.stopPropagation(); gesture.current = false; }
+    }} onClickCapture={event => {
+      if (gesture.current) { event.preventDefault(); event.stopPropagation(); gesture.current = false; }
     }}>
       <label className="chore">
         <input type="checkbox" aria-label={`${chore.name} · ${dueLabel(chore, today)}`}
