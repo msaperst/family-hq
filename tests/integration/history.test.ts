@@ -38,6 +38,22 @@ describe('chore history reporting', () => {
     expect(choreHistory(db, 7, '2026-10-26').entries.map(e => e.id)).toEqual(['current']);
     expect(choreHistory(db, 30, '2026-10-26').entries).toHaveLength(1);
   });
+  it('reflects undo and changing outcomes rather than historical event counts', () => {
+    add('transition', '2026-10-26', 'individual');
+    setSkipped(db, 'transition', 'one', true);
+    expect(choreHistory(db, 7, '2026-10-26').entries[0].status).toBe('skipped');
+    setSkipped(db, 'transition', 'one', false);
+    expect(choreHistory(db, 7, '2026-10-26').entries[0].status).toBe('outstanding');
+    setCompletion(db, 'transition', 'one', true);
+    expect(choreHistory(db, 7, '2026-10-26').entries[0].status).toBe('completed');
+    setCompletion(db, 'transition', 'one', false);
+    expect(choreHistory(db, 7, '2026-10-26').entries[0].status).toBe('outstanding');
+  });
+  it('includes 7-day boundary dates and excludes tomorrow', () => {
+    add('first', '2026-10-20', 'individual');
+    add('tomorrow', '2026-10-27', 'individual');
+    expect(choreHistory(db, 7, '2026-10-26').entries.map(entry => entry.id)).toEqual(['first']);
+  });
   it('exposes a validated read-only API for both date ranges', async () => {
     add('due', '2026-10-26', 'individual');
     expect((await app.inject({ method: 'GET', url: '/api/history?days=7' })).statusCode).toBe(200);
