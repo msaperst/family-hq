@@ -43,7 +43,7 @@ function skip(name: string) {
 }
 
 describe('dashboard skip handler', () => {
-  it('saves today's skip, preserves its row and supports undo', async () => {
+  it('saves a daily skip, preserves its row and supports undo', async () => {
     render(<App />);
     await screen.findByText('Today task');
     skip('Today task');
