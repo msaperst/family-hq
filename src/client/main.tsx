@@ -5,4 +5,10 @@ import { HistoryDashboard } from './HistoryDashboard';
 import { ParentSettings } from './ParentSettings';
 import './style.css';
 
-createRoot(document.getElementById('root')!).render(<React.StrictMode>{window.location.pathname === '/settings' ? <ParentSettings /> : window.location.pathname === '/history' ? <HistoryDashboard /> : <App />}</React.StrictMode>);
+function routeView(pathname: string) {
+  if (pathname === '/settings') return <ParentSettings />;
+  if (pathname === '/history') return <HistoryDashboard />;
+  return <App />;
+}
+
+createRoot(document.getElementById('root')!).render(<React.StrictMode>{routeView(window.location.pathname)}</React.StrictMode>);
