@@ -7,6 +7,22 @@ interface HistoryRow {
   id: string; name: string; due_on: string; mode: string;
   child_id: string; child_name: string; completed: number; skipped: number;
 }
+function historyStatus(row: HistoryRow): HistoryEntry['status'] {
+  if (row.completed) return 'completed';
+  if (row.skipped) return 'skipped';
+  return 'outstanding';
+}
+
+function historyEntry(row: HistoryRow): HistoryEntry {
+  const shared = row.mode === 'either';
+  return {
+    id: row.id, name: row.name, dueOn: row.due_on,
+    childId: shared ? 'either' : row.child_id,
+    childName: shared ? 'Either child' : row.child_name,
+    status: historyStatus(row),
+  };
+}
+
 export function choreHistory(db: DatabaseSync, days: 7 | 30 = 7, today = localToday()): HistoryResponse {
   const from = dateOffset(today, -(days - 1));
   // Fill in scheduled obligations even if nobody opened the dashboard that day.
@@ -33,12 +49,7 @@ export function choreHistory(db: DatabaseSync, days: 7 | 30 = 7, today = localTo
       if (seenShared.has(row.id)) continue;
       seenShared.add(row.id);
     }
-    entries.push({
-      id: row.id, name: row.name, dueOn: row.due_on,
-      childId: row.mode === 'either' ? 'either' : row.child_id,
-      childName: row.mode === 'either' ? 'Either child' : row.child_name,
-      status: row.completed ? 'completed' : row.skipped ? 'skipped' : 'outstanding',
-    });
+    entries.push(historyEntry(row));
   }
   return { from, through: today, today, entries };
 }
