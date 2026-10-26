@@ -57,8 +57,8 @@ function SwipeChore({ chore, today, busy, onComplete, onSkip }: {
   const gesture = useRef(false);
   const skipLabel = chore.skipped ? 'Undo skip' : 'Skip';
   return <div className={`swipe-chore${revealed ? ' revealed' : ''}${chore.skipped ? ' is-skipped' : ''}`}>
-    <button className="swipe-action" type="button" disabled={busy || chore.completed}
-      onClick={() => { setRevealed(false); onSkip(chore); }}>{skipLabel}</button>
+    {!chore.skipped && <button className="swipe-action" type="button" disabled={busy || chore.completed}
+      onClick={() => { setRevealed(false); onSkip(chore); }}>{skipLabel}</button>}
     <div className="swipe-face" onPointerDown={event => {
       if ((event.target as HTMLElement).closest('input,button')) return;
       origin.current = { x: event.clientX, y: event.clientY };
