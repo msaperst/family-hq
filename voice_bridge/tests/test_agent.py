@@ -75,6 +75,22 @@ class BridgeRecoveryTests(unittest.TestCase):
         self.bridge.on_connection_resumed(self.conn, -1, False)
         self.assertFalse(self.bridge.ready)
 
+    def test_handler_matches_aws_crt_mqtt_callback_contract(self):
+        # The SDK validates callback names with keyword arguments at subscribe
+        # time. Naming the argument _topic raises TypeError before SUBSCRIBE.
+        self.assertFalse(
+            mqtt.Connection._check_uses_old_message_callback_signature(
+                None, self.bridge.handle_command
+            )
+        )
+        request = json.dumps({"id": "d" * 32, "action": "ping",
+                              "args": {}, "expires_at": time.time() + 5}).encode()
+        self.bridge.handle_command(
+            topic=agent.COMMANDS, payload=request,
+            dup=False, qos=mqtt.QoS.AT_LEAST_ONCE, retain=False
+        )
+        self.conn.publish.assert_called_once()
+
     def test_ping_and_duplicate_id_are_handled_without_local_api(self):
         with patch.object(agent, "family_chore_list", side_effect=AssertionError("not called")):
             request = json.dumps({"id": "a" * 32, "action": "ping", "args": {},

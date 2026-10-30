@@ -116,7 +116,7 @@ class VoiceBridge:
             LOG.warning("Unable to request MQTT resubscription")
             self._request_restart(epoch)
 
-    def handle_command(self, _topic, payload, **_kwargs):
+    def handle_command(self, topic, payload, **_kwargs):
         try:
             request = parse_command(payload)
         except (ValueError, TypeError, KeyError, json.JSONDecodeError):
@@ -189,7 +189,7 @@ def run():
             serve_once(bridge)
             backoff = 1
         except Exception as exc:
-            LOG.warning("MQTT connection attempt failed type=%s; retrying", type(exc).__name__)
+            LOG.exception("MQTT connection attempt failed; retrying")
         finally:
             bridge.mark_ready(False)
         time.sleep(backoff)
