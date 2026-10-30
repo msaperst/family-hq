@@ -22,6 +22,14 @@ class CliDeployTests(unittest.TestCase):
         self.assertIn("restart: unless-stopped", staged)
         self.assertNotIn(OLD, staged)
 
+    def test_stage_preserves_companion_voice_image(self):
+        voice = "ghcr.io/msaperst/family-hq-voice-agent:sha-" + "c"*40
+        combined = MANIFEST + "  voice-agent:\n    image: " + voice + "\n"
+        staged = d.stage(combined, NEW)
+        self.assertIn(voice, staged)
+        self.assertEqual(staged.count("sha-" + NEW), 1)
+        self.assertNotIn("sha-" + OLD, staged)
+
     def test_refuses_ambiguous_images(self):
         with self.assertRaises(d.PreflightError):
             d.stage(MANIFEST + MANIFEST, NEW)

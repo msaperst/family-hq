@@ -48,9 +48,29 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install test dependency
-        run: python3 -m pip install boto3
+        run: python3 -m pip install boto3 -r voice_bridge/requirements.txt
       - name: Run read-only voice bridge tests
         run: cd voice_bridge && python3 -m unittest discover -s tests -v
+      - name: Validate integrated Container Station manifest
+        run: python3 -m unittest discover -s tests -p 'test_voice_compose.py' -v
+
+
+  voice-bridge-container-security:
+    name: Voice bridge image vulnerability scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build voice bridge image
+        run: docker build -t family-hq-voice-agent:ci ./voice_bridge
+      - name: Scan bridge OS and Python packages
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: family-hq-voice-agent:ci
+          format: table
+          exit-code: '1'
+          severity: HIGH,CRITICAL
+          vuln-type: os,library
+          ignore-unfixed: true
 
   sqlite-backup-tests:
     name: SQLite backup and restore tests
@@ -188,7 +208,7 @@ jobs:
     name: Publish verified image to GHCR
     # Production images only originate from a fully validated main-branch commit.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [app-checks, browser-e2e, sonar, docker-smoke, container-security]
+    needs: [app-checks, voice-bridge-tests, voice-bridge-container-security, browser-e2e, sonar, docker-smoke, container-security]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -203,6 +223,21 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      # Publish bridge first; the app image is the release marker for the
+      # existing NAS image updater, so never advertise an incomplete pair.
+      - name: Build and publish immutable voice bridge image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./voice_bridge
+          push: true
+          platforms: linux/amd64
+          tags: ghcr.io/${{ github.repository }}-voice-agent:sha-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.description=Family HQ outbound-only voice bridge
+          provenance: true
+          sbom: true
       - name: Build and publish immutable commit tag
         uses: docker/build-push-action@v6
         with:
