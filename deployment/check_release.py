@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only discovery of a successfully published Family HQ image."""
+"""Read-only discovery of an entirely published Family HQ + voice image pair."""
 import argparse
 import json
 import re
@@ -11,7 +11,11 @@ API = "https://api.github.com"
 REPO = "msaperst/family-hq"
 WORKFLOW = "ci.yml"
 IMAGE = "ghcr.io/msaperst/family-hq"
+VOICE_IMAGE = IMAGE + "-voice-agent"
 SHA = re.compile(r"^[a-f0-9]{40}$")
+PUBLISH_JOB = "Publish verified image to GHCR"
+PUBLISH_STEPS = ("Build and publish immutable voice bridge image",
+                 "Build and publish immutable commit tag")
 
 
 def get_json(url):
@@ -25,29 +29,31 @@ def get_json(url):
 
 
 def published_release(getter=get_json):
-    # Only workflow runs on main are candidates. Jobs must explicitly confirm
-    # the image publishing step succeeded, not merely that app tests passed.
+    # A successful main push alone is not enough: BOTH image publish steps
+    # must succeed in the same publish job for the same commit.
     query = f"{API}/repos/{REPO}/actions/workflows/{WORKFLOW}/runs?branch=main&event=push&per_page=10"
     runs = getter(query).get("workflow_runs", [])
-    for run in runs:
-        sha = run.get("head_sha", "")
+    for workflow in runs:
+        sha = workflow.get("head_sha", "")
         if not SHA.fullmatch(sha):
             continue
-        if run.get("status") != "completed" or run.get("conclusion") != "success":
+        if workflow.get("status") != "completed" or workflow.get("conclusion") != "success":
             continue
-        jobs_url = f"{API}/repos/{REPO}/actions/runs/{run['id']}/jobs?per_page=100"
+        jobs_url = f"{API}/repos/{REPO}/actions/runs/{workflow['id']}/jobs?per_page=100"
         jobs = getter(jobs_url).get("jobs", [])
-        if any(job.get("name") == "Publish verified image to GHCR"
-               and job.get("status") == "completed"
-               and job.get("conclusion") == "success" for job in jobs):
-            return sha
-    raise RuntimeError("No confirmed published main-branch image found; no action taken")
+        for job in jobs:
+            if job.get("name") != PUBLISH_JOB or job.get("status") != "completed" or job.get("conclusion") != "success":
+                continue
+            steps = {step.get("name"): step for step in job.get("steps", [])}
+            if all(steps.get(name, {}).get("conclusion") == "success" for name in PUBLISH_STEPS):
+                return sha
+    raise RuntimeError("No confirmed published main-branch image pair found; no action taken")
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--running-revision", required=True,
-                        help="Current container org.opencontainers.image.revision (40-character SHA)")
+                        help="Current Family HQ main image revision (40-character SHA)")
     args = parser.parse_args()
     if not SHA.fullmatch(args.running_revision):
         parser.error("--running-revision must be a 40-character lowercase commit SHA")
@@ -60,8 +66,11 @@ def main():
         "running_revision": args.running_revision,
         "latest_published_revision": latest,
         "image": f"{IMAGE}:sha-{latest}",
+        "voice_image": f"{VOICE_IMAGE}:sha-{latest}",
         "update_available": latest != args.running_revision,
         "deployment_performed": False,
+        # This legacy CLI compares only the main revision. The scheduled
+        # poll_and_deploy.py compares both running container revisions.
     }, sort_keys=True))
     return 0
 

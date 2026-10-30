@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""NAS-side one-shot verified-release poller. Safe by default; --apply deploys."""
+"""NAS one-shot poller for the verified *pair* of Family HQ images.
+
+Default is dry-run; --apply enables deployment once the NAS operator opts in.
+"""
 import argparse
 import datetime as dt
 import json
@@ -10,7 +13,9 @@ import sys
 from urllib.error import HTTPError, URLError
 
 from check_release import published_release, SHA
-from deploy_cli import deploy, revision, PreflightError
+from deploy_cli import deploy, revisions, PreflightError
+
+SERVICES = ("family-hq", "voice-agent")
 
 
 def quarantine_path(state_dir):
@@ -45,24 +50,26 @@ def record_failure(state_dir, sha):
             os.unlink(name)
 
 
-def poll(args, release_getter=published_release, revision_getter=revision, deployer=deploy):
+def poll(args, release_getter=published_release, revision_getter=revisions, deployer=deploy):
     current = revision_getter(args.docker)
+    from_pair = {service: current[service] for service in SERVICES}
     target = release_getter()
-    if target == current:
-        return {"status": "up_to_date", "revision": current, "deployment_performed": False}
+    if all(sha == target for sha in from_pair.values()):
+        return {"status": "up_to_date", "revisions": from_pair,
+                "voice_health": current["voice_health"], "deployment_performed": False}
     if not args.apply:
-        return {"status": "update_available", "from": current, "to": target,
-                "deployment_performed": False,
+        return {"status": "update_available", "from": from_pair, "to": target,
+                "voice_health": current["voice_health"], "deployment_performed": False,
                 "quarantined": read_quarantine(args.state_dir) == target}
     if read_quarantine(args.state_dir) == target:
-        return {"status": "quarantined", "from": current, "to": target,
+        return {"status": "quarantined", "from": from_pair, "to": target,
                 "deployment_performed": False}
     args.target_sha = target
     try:
         return deployer(args, True)
     except PreflightError as exc:
-        # Only quarantine after an attempted rollout failed. API races,
-        # unreachable backups and preflight errors remain retryable.
+        # Failed rollouts are quarantined. Registry failure, backup failure,
+        # template drift, and other preflight problems remain retryable.
         if str(exc).startswith("Deployment failed"):
             record_failure(args.state_dir, target)
         raise
@@ -78,7 +85,7 @@ def main():
     p.add_argument("--backup-dir", type=Path, required=True)
     p.add_argument("--backup-script", type=Path, required=True)
     p.add_argument("--apply", action="store_true",
-                   help="Enable unattended rollout; requires explicit operator setup")
+                   help="Enable unattended paired rollout; requires operator opt-in")
     args = p.parse_args()
     now = dt.datetime.now(dt.timezone.utc).isoformat()
     try:
