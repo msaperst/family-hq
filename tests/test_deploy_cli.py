@@ -160,6 +160,31 @@ class CliDeployTests(unittest.TestCase):
             self.assertTrue(out["bridge_degraded"])
             self.assertEqual(out["voice_health"], "unhealthy")
 
+    def test_voice_only_failure_never_recreates_dashboard(self):
+        with tempfile.TemporaryDirectory() as folder:
+            base=Path(folder);a=args(base,manifest(NEW,OLD))
+            volume=base/"volume";volume.mkdir()
+            (volume/"family-hq.sqlite").write_bytes(b"database")
+            commands=[]
+            def fake_run(argv,timeout=180):
+                commands.append(argv)
+                if argv[1:3] == ["volume","inspect"]: return str(volume)
+                if "backup" in argv: return "BACKUP_OK " + str(base/"snap") + " bytes=1"
+                return ""
+            def health(docker,service,sha):
+                if service == "voice-agent" and sha == NEW:
+                    raise d.PreflightError("bridge startup failed")
+                return "healthy"
+            with patch.object(d,"revisions",return_value=revisions(NEW,OLD)), \\
+                 patch.object(d,"published_release",return_value=NEW), \\
+                 patch.object(d,"run",side_effect=fake_run), \\
+                 patch.object(d,"await_service",side_effect=health):
+                with self.assertRaisesRegex(d.PreflightError,"previous image pair restored"):
+                    d.deploy(a,True)
+            self.assertEqual([x[-1] for x in commands if "up" in x],
+                             ["voice-agent","voice-agent"])
+            self.assertEqual((a.state_dir/"active.compose.yml").read_text(),manifest(NEW,OLD))
+
     def test_pull_failure_does_not_recreate_or_quarantine(self):
         with tempfile.TemporaryDirectory() as folder:
             base=Path(folder);a=args(base,manifest())
