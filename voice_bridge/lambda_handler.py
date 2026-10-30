@@ -23,13 +23,10 @@ def handler(event, _context):
 
     request_id = uuid.uuid4().hex
     now = time.time()
-    deadline = now + 4.0
     table = boto3.resource("dynamodb").Table(os.environ["RESPONSE_TABLE"])
     mqtt = boto3.client("iot-data", endpoint_url="https://" + os.environ["IOT_DATA_ENDPOINT"])
     command = {"id": request_id, "action": action, "args": args, "expires_at": now + 6}
     mqtt.publish(topic="family-hq/v1/commands", qos=0, payload=json.dumps(command))
-    while time.monotonic() < (end := time.monotonic() + 0.0) if False else False:
-        pass
     # Poll only a few seconds. Consistent reads avoid visibility delays.
     end = time.monotonic() + 3.6
     try:
