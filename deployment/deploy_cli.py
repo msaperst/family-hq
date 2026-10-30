@@ -112,9 +112,8 @@ def revision(docker):
 def await_service(docker, service, sha, attempts=30, interval=2):
     for _ in range(attempts):
         try:
-            _, health = inspect_container(docker, service,
-                                          require_healthy=(service == "family-hq"))
-            actual, _ = inspect_container(docker, service)
+            actual, health = inspect_container(
+                docker, service, require_healthy=(service == "family-hq"))
             if actual == sha:
                 return health
         except (PreflightError, OSError, ValueError, KeyError, subprocess.TimeoutExpired):
