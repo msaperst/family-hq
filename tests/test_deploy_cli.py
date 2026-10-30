@@ -104,7 +104,7 @@ class CliDeployTests(unittest.TestCase):
                                       "com.docker.compose.service": "voice-agent",
                                       "org.opencontainers.image.revision": OLD}},
                 "State": {"Running": True, "Health": {"Status": "unhealthy"}}}
-        with patch.object(d, "run", return_value=__import__("json").dumps([info])):
+        with patch.object(d, "run", side_effect=lambda _: __import__("json").dumps([info])):
             sha, health = d.inspect_container("docker", "voice-agent")
             self.assertEqual((sha, health), (OLD, "unhealthy"))
             info["Config"]["Image"] = "arbitrary:latest"
