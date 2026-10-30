@@ -1,6 +1,6 @@
-# Paste into Container Station > Applications > Create.
-# Replace the image tag with a real successful main-branch SHA release.
-# The absolute env_file must exist on the NAS before creating this application.
+# Update the EXISTING family-hq application in Container Station; do not create a second app.
+# Replace BOTH image placeholders with the same verified full main-branch commit SHA.
+# Keep the existing app's env_file, loopback port, and external SQLite volume.
 services:
   family-hq:
     image: ghcr.io/msaperst/family-hq:sha-REPLACE_WITH_40_CHAR_COMMIT_SHA
