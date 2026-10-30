@@ -1,6 +1,6 @@
 # Family HQ voice bridge — read-only proof of concept
 
-**Status:** read-only MQTT prototype, not a published Alexa skill. The bridge is a separate **container in the same Family HQ Compose application**. AWS resources and NAS deployment still require manual provisioning; Family HQ remains LAN-only.
+**Status:** read-only MQTT proof of concept, not a published Alexa skill. The bridge is a separate **container in the same Family HQ Compose application**. The AWS Lambda, response table, rule, and IAM roles are defined in [aws/response-stack.yaml](aws/response-stack.yaml), with deployment and validation steps in [aws/DEPLOY.md](aws/DEPLOY.md); deploying that stack still requires operator AWS access. Family HQ remains LAN-only.
 
 ## Architecture
 

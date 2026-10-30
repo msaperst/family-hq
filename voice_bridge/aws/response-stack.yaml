@@ -1,0 +1,132 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Family HQ private read-only MQTT response rendezvous (IoT Rule, DynamoDB, Lambda).
+
+Parameters:
+  LambdaCodeBucket:
+    Type: String
+    Description: S3 bucket containing a ZIP with lambda_handler.py at its root.
+  LambdaCodeKey:
+    Type: String
+    Description: Versioned S3 key of the Lambda ZIP (change this for code updates).
+  IotDataEndpoint:
+    Type: String
+    Default: a1zj6ia2bckpg1-ats.iot.us-east-1.amazonaws.com
+    Description: Account-specific AWS IoT data ATS endpoint, without https://.
+
+Resources:
+  ResponseTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      SSESpecification:
+        SSEEnabled: true
+
+  IotRuleRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: iot.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+              ArnLike:
+                aws:SourceArn: !Sub 'arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:rule/*'
+      Policies:
+        - PolicyName: WriteOnlyResponseTable
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: dynamodb:PutItem
+                Resource: !GetAtt ResponseTable.Arn
+
+  ResponseTopicRule:
+    Type: AWS::IoT::TopicRule
+    Properties:
+      TopicRulePayload:
+        AwsIotSqlVersion: '2016-03-23'
+        RuleDisabled: false
+        Description: Save short-lived Family HQ voice responses by request id.
+        Sql: >-
+          SELECT *, floor(timestamp() / 1000) + 120 AS ttl
+          FROM 'family-hq/v1/responses'
+          WHERE isUndefined(id) = false
+        Actions:
+          - DynamoDBv2:
+              PutItem:
+                TableName: !Ref ResponseTable
+              RoleArn: !GetAtt IotRuleRole.Arn
+
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ReadResponseAndPublishCommand
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: iot:Publish
+                Resource: !Sub 'arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:topic/family-hq/v1/commands'
+              - Effect: Allow
+                Action: dynamodb:GetItem
+                Resource: !GetAtt ResponseTable.Arn
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::StackName}-command:*'
+
+  CommandLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-command'
+      Handler: lambda_handler.handler
+      Runtime: python3.12
+      Architectures: [arm64]
+      MemorySize: 128
+      Timeout: 8
+      Role: !GetAtt LambdaRole.Arn
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Ref LambdaCodeKey
+      Environment:
+        Variables:
+          RESPONSE_TABLE: !Ref ResponseTable
+          IOT_DATA_ENDPOINT: !Ref IotDataEndpoint
+
+  LambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-command'
+      RetentionInDays: 7
+
+Outputs:
+  CommandLambdaName:
+    Description: Lambda function name for direct test invocation; not publicly accessible.
+    Value: !Ref CommandLambda
+  ResponseTableName:
+    Value: !Ref ResponseTable
+  ResponseTopicRuleName:
+    Value: !Ref ResponseTopicRule

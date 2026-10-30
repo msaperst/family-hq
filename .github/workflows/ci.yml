@@ -48,7 +48,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install test dependency
-        run: python3 -m pip install boto3 -r voice_bridge/requirements.txt
+        run: python3 -m pip install boto3 PyYAML -r voice_bridge/requirements.txt
       - name: Run read-only voice bridge tests
         run: cd voice_bridge && python3 -m unittest discover -s tests -v
       - name: Validate integrated Container Station manifest
