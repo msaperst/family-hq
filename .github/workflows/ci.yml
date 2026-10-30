@@ -39,6 +39,19 @@ jobs:
       - name: Dependency audit
         run: npm audit --audit-level=high
 
+  voice-bridge-tests:
+    name: Voice bridge protocol and Lambda tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install test dependency
+        run: python3 -m pip install boto3
+      - name: Run read-only voice bridge tests
+        run: cd voice_bridge && python3 -m unittest discover -s tests -v
+
   sqlite-backup-tests:
     name: SQLite backup and restore tests
     runs-on: ubuntu-latest
