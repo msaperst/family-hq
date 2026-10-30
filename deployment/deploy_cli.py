@@ -195,24 +195,26 @@ def deploy(a, execute):
             write_manifest(candidate, staged_previous)
             raise PreflightError(f"Image preflight failed without container changes: {exc}") from exc
 
+        attempted = []
         try:
             if previous["family-hq"] != a.target_sha:
+                attempted.append("family-hq")
                 update_service(command, "family-hq")
                 await_service(a.docker, "family-hq", a.target_sha)
             if previous["voice-agent"] != a.target_sha:
+                attempted.append("voice-agent")
                 update_service(command, "voice-agent")
             voice_health = await_service(a.docker, "voice-agent", a.target_sha)
         except Exception as failure:
-            # Restore the exact previous pair, including mismatched pre-existing
-            # versions. The voice-agent connection state is not a prerequisite
-            # for bringing back the family's LAN dashboard.
+            # Restore exactly the services touched by this attempt. In
+            # particular, a voice-only failure must NOT recreate Family HQ.
             write_manifest(candidate, staged_previous)
             try:
                 run(command + ["config", "--quiet"])
-                update_service(command, "family-hq")
-                await_service(a.docker, "family-hq", previous["family-hq"])
-                update_service(command, "voice-agent")
-                await_service(a.docker, "voice-agent", previous["voice-agent"])
+                for service in SERVICES:
+                    if service in attempted:
+                        update_service(command, service)
+                        await_service(a.docker, service, previous[service])
             except Exception as rollback_failure:
                 raise PreflightError(f"Deployment failed: {failure}; IMAGE ROLLBACK ALSO FAILED: {rollback_failure}; snapshot={snapshot}") from rollback_failure
             raise PreflightError(f"Deployment failed; previous image pair restored: {failure}; snapshot={snapshot}") from failure
