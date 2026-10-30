@@ -28,6 +28,31 @@ services:
       retries: 3
       start_period: 15s
 
+  # Two services, one Container Station application, shared private network.
+  voice-agent:
+    image: ghcr.io/msaperst/family-hq-voice-agent:sha-REPLACE_WITH_40_CHAR_COMMIT_SHA
+    depends_on:
+      family-hq:
+        condition: service_healthy
+        restart: true
+    environment:
+      IOT_ENDPOINT: a1zj6ia2bckpg1-ats.iot.us-east-1.amazonaws.com
+      IOT_CLIENT_ID: family-hq-voice-agent
+      IOT_CERT_PATH: /run/certs/device.pem.crt
+      IOT_KEY_PATH: /run/certs/device.pem.key
+      FAMILY_HQ_URL: http://family-hq:3080
+    volumes:
+      - /share/homes/msaperst/family-hq-voice/certs:/run/certs:ro
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=1m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
 volumes:
   family-hq-data:
     external: true
