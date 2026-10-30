@@ -175,9 +175,9 @@ class CliDeployTests(unittest.TestCase):
                 if service == "voice-agent" and sha == NEW:
                     raise d.PreflightError("bridge startup failed")
                 return "healthy"
-            with patch.object(d,"revisions",return_value=revisions(NEW,OLD)), \\
-                 patch.object(d,"published_release",return_value=NEW), \\
-                 patch.object(d,"run",side_effect=fake_run), \\
+            with patch.object(d,"revisions",return_value=revisions(NEW,OLD)), \
+                 patch.object(d,"published_release",return_value=NEW), \
+                 patch.object(d,"run",side_effect=fake_run), \
                  patch.object(d,"await_service",side_effect=health):
                 with self.assertRaisesRegex(d.PreflightError,"previous image pair restored"):
                     d.deploy(a,True)
