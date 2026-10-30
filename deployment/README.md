@@ -12,6 +12,55 @@ The tag records the code revision. Use a tag tied to a known passing workflow; f
 
 Check the repository's Actions run and GHCR package visibility first. A public repository does **not** guarantee its GHCR package is public. Either make this image package public in GitHub package settings (preferred for this LAN-only application with no embedded secrets) or configure read-only GHCR access on the NAS. Do **not** place a registry token in committed YAML.
 
+## Integrated voice bridge rollout (manual Container Station change)
+
+The Family HQ dashboard and AWS MQTT voice bridge are **two containers in one
+Container Station application**, not two NAS applications. GitHub Actions tests
+and scans the bridge image, publishing
+`ghcr.io/msaperst/family-hq-voice-agent:sha-<full-40-character-commit-sha>`
+**before** the corresponding Family HQ image. Both images use amd64 and
+must be pinned to the **same verified main-branch commit** for the initial
+combined rollout. Neither image is deployed automatically by GitHub Actions.
+
+After merging, confirm the main workflow published **both** images and the
+NAS can pull the new GHCR package. A public GitHub repository does not make
+every GHCR package publicly accessible; enable package visibility separately
+or use private read-only registry access. Complete AWS IoT Core Thing,
+certificate, and least-privilege IoT policy setup first.
+
+The private files already created on Niaj are:
+- `/share/homes/msaperst/family-hq-voice/certs/device.pem.crt`
+- `/share/homes/msaperst/family-hq-voice/certs/device.pem.key`
+
+Keep the directory owned by UID 10001 with mode 0700 and each file mode 0600.
+With `sudo`, specify both exact paths: shell wildcards cannot expand inside
+a 0700 directory owned by that UID. Never commit or paste private keys.
+
+Back up the current Container Station application definition and verify the
+latest SQLite backup. In the **existing** `family-hq` application's YAML,
+preserve the existing Family HQ service completely: env_file, loopback port,
+persistent `family-hq-data` volume and healthcheck. Add the `voice-agent`
+service from `container-station.compose.yaml`. Replace **both** image SHA
+placeholders with the same verified commit. Confirm QNAP supports long-form
+`depends_on`, `read_only`, and `tmpfs` before applying; use the normal
+Container Station application update, not a second application. Do not use
+`docker compose down -v` or remove existing Docker volumes.
+
+The sidecar has no published ports and calls `http://family-hq:3080` on the
+shared Compose network. It reports unhealthy while AWS MQTT is disconnected
+but retries; **AWS downtime must not stop the dashboard**. A Family HQ API
+outage returns a generic error to the bridge and is recoverable without a
+restart. Verify Container Station health and a fresh MQTT `ping` in AWS
+IoT Core before configuring Lambda, DynamoDB, or the Alexa skill.
+
+**Existing NAS auto-updater:** `deploy_cli.py` still stages only the
+Family HQ image and invokes `docker compose up -d --no-deps ... family-hq`,
+preserving the bridge image tag. As previously documented, CLI takeover can
+make the application disappear from Container Station's Applications list;
+do not alternate UI and CLI deployments without reconciling the saved Compose.
+Voice-image upgrades presently require an explicit Compose change and are
+not part of the scheduled Family HQ updater.
+
 ## NAS bootstrap (once)
 
 1. In Container Station, confirm `family-hq-data` exists or create it with `docker volume create family-hq-data`. Keep this volume on every update.
