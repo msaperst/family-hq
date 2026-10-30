@@ -53,13 +53,15 @@ outage returns a generic error to the bridge and is recoverable without a
 restart. Verify Container Station health and a fresh MQTT `ping` in AWS
 IoT Core before configuring Lambda, DynamoDB, or the Alexa skill.
 
-**Existing NAS auto-updater:** `deploy_cli.py` still stages only the
-Family HQ image and invokes `docker compose up -d --no-deps ... family-hq`,
-preserving the bridge image tag. As previously documented, CLI takeover can
-make the application disappear from Container Station's Applications list;
-do not alternate UI and CLI deployments without reconciling the saved Compose.
-Voice-image upgrades presently require an explicit Compose change and are
-not part of the scheduled Family HQ updater.
+**Paired NAS auto-updater:** `poll_and_deploy.py` now checks the running
+image revisions of **both** `family-hq` and `voice-agent`. When either is
+outdated, `deploy_cli.py` stages the matching verified SHA for both images.
+It pre-pulls both images, creates and verifies a SQLite backup, updates only
+services that actually changed, and rolls the pair back on a failed rollout.
+AWS MQTT outages do **not** force a rollback: the voice agent may be
+unhealthy while the LAN dashboard is healthy. Image-only health cannot
+guarantee Alexa requests work, so inspect the bridge's `voice_health` and
+`bridge_degraded` status too. No GitHub process connects into Niaj.
 
 ## NAS bootstrap (once)
 
@@ -74,15 +76,18 @@ QNAP's built-in proxy must accept the selected HTTPS listener and a valid certif
 
 ## NAS-side CLI deployment
 
-The NAS can initiate an image-only update using [`deploy_cli.py`](deploy_cli.py), with a fresh verified SQLite backup and automatic **image** rollback if deployment or health checks fail. This uses a **persistent staged Compose file** and leaves QNAP's saved YAML untouched.
+The NAS can initiate a paired image-only update using [`deploy_cli.py`](deploy_cli.py), with a fresh verified SQLite backup and automatic **image-pair** rollback if the rollout or dashboard health check fails. This uses a **persistent staged Compose file** and leaves QNAP's saved YAML untouched.
 
 **Accepted tradeoff:** Container Station may no longer list the application under **Applications** after a CLI update, even while the container is running and managed by Docker Compose. We reproduced this on a disposable QNAP application; restoring its original Compose labels did not restore the UI listing. Treat Docker Compose, not QNAP's Applications view, as the deployment authority after switching to the CLI method. Do not edit QNAP-generated Compose files directly.
 
-The first rollout must be explicitly approved and observed. There is **no scheduled or unattended deployment** in this PR.
+The **first paired rollout** must be supervised and followed by a rollback
+drill; the script itself does not create or enable a schedule. Use a separate
+NAS cron wrapper with `AUTO_DEPLOY=yes` only after validating recovery and
+the Compose ownership tradeoff.
 
 ### One-time setup
 
-Place `check_release.py`, `deploy_cli.py` and `family_hq_backup.py` together in a private, stable location on the NAS. The deployment state directory must be persistent (not under `/tmp`), writable only by an administrative account, and distinct from the SQLite Docker volume. Run the script with privileges sufficient to access the Docker socket and SQLite backup path.
+Place `check_release.py`, `deploy_cli.py`, `poll_and_deploy.py` and `family_hq_backup.py` together in a private, stable location on the NAS. The deployment state directory must be persistent (not under `/tmp`), writable only by an administrative account, and distinct from the SQLite Docker volume. Run the script with privileges sufficient to access the Docker socket and SQLite backup path.
 
 Use the application Compose and resource-file locations recorded by the running container. Use the existing stable backup directory and verify its normal scheduled backups remain in place.
 
@@ -123,9 +128,58 @@ Subsequent CLI deployments reuse the stable staged Compose path, not a disposabl
 
 ## Scheduled release checks (NAS pull)
 
-`poll_and_deploy.py` ties together release discovery and the proven `deploy_cli.py` controller. It checks the healthy running revision, resolves the latest published `main` image, and exits without a deployment if the images match. In its **default read-only mode**, it only reports an available update. With `--apply`, it delegates to the existing deployment controller, which independently revalidates the release, obtains a deployment lock, performs a verified SQLite backup, upgrades via persistent Compose, health-checks the new revision, and attempts image rollback on failure.
+`poll_and_deploy.py` ties together release discovery and the `deploy_cli.py`
+controller. It checks **both running image revisions**, selects the newest
+successful `main` workflow that published the **two GHCR image tags**, and
+exits without a deployment only when **both images match**. Its default mode
+is read-only. With `--apply`, the controller independently verifies the
+release, takes a deployment lock, makes and checks a SQLite snapshot,
+pre-pulls both images, then updates only changed services in the persistent
+Compose project. After each service update it checks the exact expected
+image revision. The dashboard must be healthy; the bridge must be running
+but may report degraded health during AWS outages. A failed rollout attempts
+to restore the exact previous image pair. It never runs `down`, `down -v`,
+or removes the `family-hq-data` volume.
 
 This is NAS-initiated; GitHub Actions has no inbound access to the network.
+
+### One-time upgrade of the NAS deployment controller
+
+**Merging this PR does not replace scripts already copied to Niaj.** The
+existing unattended poller remains main-image-only until the operator installs
+the updated `check_release.py`, `deploy_cli.py`, and `poll_and_deploy.py`
+**together**, from the **same reviewed and merged GitHub commit**. Do not mix
+old and new versions. No Git or Docker image build is needed on Niaj; use
+a controlled, operator-initiated file transfer from the verified source.
+
+1. Set the current NAS wrapper's `AUTO_DEPLOY=no` and pause its cron entry
+   while doing the one-time controller upgrade.
+2. Back up the original three scripts and saved Compose configuration.
+   Preserve `family_hq_backup.py`, `run-release-check.sh`, the private
+   state directory, and the scheduled backup paths.
+3. Install the three updated Python files to the **existing NAS scripts
+   directory** (without overwriting private environment files).
+4. Run the wrapper without `--apply`: verify it reports a paired
+   `update_available` result, or `up_to_date` if both versions already match.
+5. Run **one supervised** paired upgrade, verify the SQLite snapshot and the
+   LAN dashboard, and inspect the voice agent's MQTT health. Test rollback
+   with a controlled non-production drill before re-enabling unattended mode.
+6. Restore the existing cron wrapper and `AUTO_DEPLOY=yes` only after
+   confirming no second deployer manages the same Compose project.
+
+Once these scripts are installed, **later main commits containing both images
+are automatically discovered and deployed together** by the existing NAS
+schedule. A future change to the updater *code* itself would still require
+a controlled script upgrade; we intentionally do not self-update deployment
+code from arbitrary GitHub responses.
+
+**Ownership warning:** CLI Compose updates can cause the app to disappear
+from Container Station's Applications listing even while its containers run.
+This previously observed QNAP behavior is still an accepted tradeoff; use the
+persistent `active.compose.yml` as the authority and do not alternate
+Container Station UI edits with automated CLI updates.
+
+
 
 Copy `poll_and_deploy.py`, `deploy_cli.py`, `check_release.py`, and `family_hq_backup.py` to the NAS deployment scripts directory. Then copy [`run-release-check.sh.example`](run-release-check.sh.example) to a private NAS-local `run-release-check.sh` and set the actual absolute Docker/Python paths and scripts, backup, and state directories. **Do not run the example unchanged.** Set the wrapper executable and run it manually; inspect the JSON output. It defaults to `AUTO_DEPLOY=no`, so this initial run does not change the container.
 
@@ -137,7 +191,10 @@ To schedule read-only checks on QNAP, add an entry to the NAS's persistent `/etc
 
 Reload QNAP's cron service using the documented procedure and verify both persistent and active crontab entries. Avoid duplicate entries. **This repository does not install or enable cron.** When ready to authorize unattended image updates, set `AUTO_DEPLOY=yes` in the private wrapper. Keep the cron job at a conservative hourly cadence to avoid excessive unauthenticated GitHub API requests. Check the log for `up_to_date`, `update_available`, `deployed`, or `error` results, and periodically inspect backup retention and health.
 
-**Before enabling unattended deployment**, test a supervised upgrade and a failed-release/image-rollback drill. The existing health gate verifies the Docker container's health and commit revision, not Calendar OAuth, actual chore behavior, or reverse-proxy accessibility. Automated rollback only changes the image; incompatible database migrations still need manual restore. Failure logs should be reviewed; no automatic alerts are configured.
+**Before enabling unattended deployment**, test a supervised upgrade and a failed-release/image-rollback drill. The dashboard health gate checks its Docker health and pinned revision; the
+bridge gate checks running state and pinned revision but deliberately does not
+require a live AWS connection. Verify Calendar, chores, bridge MQTT and
+reverse-proxy accessibility separately. Automated rollback only changes the image; incompatible database migrations still need manual restore. Failure logs should be reviewed; no automatic alerts are configured.
 
 The script may leave Container Station's Applications metadata stale, as previously observed and accepted. Docker Compose and the persistent `active.compose.yml` remain authoritative. Do not edit Container Station's stored YAML or schedule a second deployer for the same service.
 
